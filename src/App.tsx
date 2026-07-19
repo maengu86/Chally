@@ -1,18 +1,14 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import chevronLeftDoodleSrc from './assets/chevron-left-doodle-v1.png'
-import chevronRightDoodleSrc from './assets/chevron-right-doodle-v1.png'
-import lockClosedDoodleSrc from './assets/lock-closed-doodle-v6.png'
-import lockOpenDoodleSrc from './assets/lock-open-doodle-v6.png'
+import { ArrowLeft, ChevronLeft, ChevronRight, Lock, LockOpen, Plus, Search, UserRound, UsersRound } from 'lucide-react'
 
-type Screen = 'home' | 'groups' | 'habitDetail' | 'groupDetail'
+type Screen = 'home' | 'groups' | 'habitDetail' | 'groupDetail' | 'groupMembers'
 type ModalMode = 'record' | 'habit' | 'group'
-type HabitDetailConcept = 'summary' | 'check' | 'week' | 'history' | 'coach'
+type HabitDetailConcept = 'status1' | 'status2' | 'status3' | 'status4' | 'status5'
 
 type Habit = {
   id: number
   title: string
-  category: string
   completed: boolean
   createdAt: string
 }
@@ -28,7 +24,6 @@ type RecordItem = {
 type Group = {
   id: number
   title: string
-  category: string
   isPrivate: boolean
   uploadedAt: Date
   privateKey?: string
@@ -38,10 +33,25 @@ type GroupMember = {
   id: number
   name: string
   status: string
+  joinedAt: string
+}
+
+type GroupChallengeProgress = {
+  memberId: number
   completedCount: number
   totalCount: number
-  streak: number
+  note: string
 }
+
+type GroupChallenge = {
+  id: number
+  title: string
+  summary: string
+  isParticipating: boolean
+  progress: GroupChallengeProgress[]
+}
+
+type GroupChallengeStore = Record<string, GroupChallenge[]>
 
 const appToday = new Date()
 const calendarYear = appToday.getFullYear()
@@ -54,21 +64,21 @@ const yesterdayIso = toISODate(yesterday.getFullYear(), yesterday.getMonth() + 1
 const mockHabitCreatedAt = toISODate(calendarYear, currentCalendarMonth, 1)
 
 const recommendedGroups: Group[] = [
-  { id: 1001, title: '여름 물마시기 챌린지', category: '건강', isPrivate: false, uploadedAt: minutesAgo(18) },
-  { id: 1002, title: '퇴근 후 산책 인증', category: '운동', isPrivate: true, uploadedAt: hoursAgo(3), privateKey: 'walk' },
-  { id: 1003, title: '매일 컨디션 체크', category: '기록', isPrivate: false, uploadedAt: hoursAgo(21) },
-  { id: 1004, title: '밤 루틴 정리방', category: '생활', isPrivate: true, uploadedAt: daysAgo(2), privateKey: 'night' },
-  { id: 1005, title: '가벼운 스트레칭 모임', category: '운동', isPrivate: false, uploadedAt: daysAgo(5) },
-  { id: 1006, title: '카페인 줄이기 클럽', category: '건강', isPrivate: false, uploadedAt: hoursAgo(7) },
+  { id: 1001, title: '여름 물마시기 챌린지', isPrivate: false, uploadedAt: minutesAgo(18) },
+  { id: 1002, title: '퇴근 후 산책 인증', isPrivate: true, uploadedAt: hoursAgo(3), privateKey: 'walk' },
+  { id: 1003, title: '매일 컨디션 체크', isPrivate: false, uploadedAt: hoursAgo(21) },
+  { id: 1004, title: '밤 루틴 정리방', isPrivate: true, uploadedAt: daysAgo(2), privateKey: 'night' },
+  { id: 1005, title: '가벼운 스트레칭 모임', isPrivate: false, uploadedAt: daysAgo(5) },
+  { id: 1006, title: '카페인 줄이기 클럽', isPrivate: false, uploadedAt: hoursAgo(7) },
 ]
 
 const mockHabits: Habit[] = [
-  { id: 1, title: '물 8잔 마시기', category: '건강', completed: true, createdAt: mockHabitCreatedAt },
-  { id: 2, title: '햇빛 피해서 산책', category: '운동', completed: false, createdAt: mockHabitCreatedAt },
-  { id: 3, title: '여름 컨디션 기록', category: '기록', completed: true, createdAt: mockHabitCreatedAt },
-  { id: 4, title: '카페인 줄이기', category: '건강', completed: false, createdAt: mockHabitCreatedAt },
-  { id: 5, title: '가벼운 샤워', category: '생활', completed: true, createdAt: mockHabitCreatedAt },
-  { id: 6, title: '취침 전 환기', category: '생활', completed: false, createdAt: mockHabitCreatedAt },
+  { id: 1, title: '물 8잔 마시기', completed: true, createdAt: mockHabitCreatedAt },
+  { id: 2, title: '햇빛 피해서 산책', completed: false, createdAt: mockHabitCreatedAt },
+  { id: 3, title: '여름 컨디션 기록', completed: true, createdAt: mockHabitCreatedAt },
+  { id: 4, title: '카페인 줄이기', completed: false, createdAt: mockHabitCreatedAt },
+  { id: 5, title: '가벼운 샤워', completed: true, createdAt: mockHabitCreatedAt },
+  { id: 6, title: '취침 전 환기', completed: false, createdAt: mockHabitCreatedAt },
 ]
 
 const mockRecords: RecordItem[] = [
@@ -78,20 +88,183 @@ const mockRecords: RecordItem[] = [
 ]
 
 const mockGroups: Group[] = [
-  { id: 1, title: '여름 루틴 챌린지', category: '건강', isPrivate: false, uploadedAt: minutesAgo(42) },
-  { id: 2, title: '조용한 컨디션 기록', category: '기록', isPrivate: true, uploadedAt: hoursAgo(9) },
+  { id: 1, title: '여름 루틴 챌린지', isPrivate: false, uploadedAt: minutesAgo(42) },
+  { id: 2, title: '조용한 컨디션 기록', isPrivate: true, uploadedAt: hoursAgo(9) },
 ]
 
 const groupMembers: GroupMember[] = [
-  { id: 1, name: '민지', status: '물마시기 완료', completedCount: 2, totalCount: 3, streak: 6 },
-  { id: 2, name: '서연', status: '산책 기록 전', completedCount: 1, totalCount: 3, streak: 3 },
-  { id: 3, name: '지우', status: '컨디션 기록 완료', completedCount: 3, totalCount: 3, streak: 9 },
+  { id: 1, name: '지우', status: '오늘 인증 완료', joinedAt: '2026-06-08' },
+  { id: 2, name: '민지', status: '아침 체크 완료', joinedAt: '2026-06-09' },
+  { id: 3, name: '서연', status: '저녁 기록 예정', joinedAt: '2026-06-10' },
+  { id: 4, name: '하린', status: '물마시기 완료', joinedAt: '2026-06-11' },
+  { id: 5, name: '유나', status: '컨디션 체크 완료', joinedAt: '2026-06-12' },
+  { id: 6, name: '다은', status: '산책 인증 완료', joinedAt: '2026-06-12' },
+  { id: 7, name: '소윤', status: '루틴 점검 완료', joinedAt: '2026-06-13' },
+  { id: 8, name: '나은', status: '오후 기록 대기', joinedAt: '2026-06-14' },
+  { id: 9, name: '예린', status: '체크리스트 완료', joinedAt: '2026-06-15' },
+  { id: 10, name: '채원', status: '수분 보충 완료', joinedAt: '2026-06-16' },
+  { id: 11, name: '수아', status: '밤 기록 예정', joinedAt: '2026-06-17' },
+  { id: 12, name: '가은', status: '오늘 참여 완료', joinedAt: '2026-06-18' },
+  { id: 13, name: '예서', status: '컨디션 기록 대기', joinedAt: '2026-06-19' },
+  { id: 14, name: '시은', status: '산책 기록 완료', joinedAt: '2026-06-20' },
+  { id: 15, name: '윤서', status: '아침 루틴 완료', joinedAt: '2026-06-21' },
+]
+
+const groupChallenges: GroupChallenge[] = [
+  {
+    id: 1,
+    title: '물마시기',
+    summary: '하루 물 8잔 인증',
+    isParticipating: true,
+    progress: [
+      { memberId: 1, completedCount: 10, totalCount: 10, note: '오늘 인증 완료' },
+      { memberId: 2, completedCount: 9, totalCount: 10, note: '아침 체크 완료' },
+      { memberId: 4, completedCount: 9, totalCount: 10, note: '수분 보충 완료' },
+      { memberId: 7, completedCount: 8, totalCount: 10, note: '오후 기록 완료' },
+      { memberId: 10, completedCount: 8, totalCount: 10, note: '저녁 체크 예정' },
+      { memberId: 5, completedCount: 7, totalCount: 10, note: '오늘 6잔 완료' },
+      { memberId: 12, completedCount: 7, totalCount: 10, note: '참여 기록 완료' },
+      { memberId: 6, completedCount: 6, totalCount: 10, note: '점심 체크 완료' },
+      { memberId: 9, completedCount: 6, totalCount: 10, note: '저녁 기록 대기' },
+      { memberId: 15, completedCount: 5, totalCount: 10, note: '아침 루틴 완료' },
+      { memberId: 3, completedCount: 5, totalCount: 10, note: '저녁 기록 예정' },
+      { memberId: 14, completedCount: 4, totalCount: 10, note: '오후 체크 완료' },
+      { memberId: 8, completedCount: 4, totalCount: 10, note: '기록 대기' },
+      { memberId: 11, completedCount: 3, totalCount: 10, note: '밤 기록 예정' },
+      { memberId: 13, completedCount: 2, totalCount: 10, note: '첫 기록 완료' },
+    ],
+  },
+  {
+    id: 2,
+    title: '산책 기록',
+    summary: '20분 걷기 인증',
+    isParticipating: false,
+    progress: [
+      { memberId: 6, completedCount: 10, totalCount: 10, note: '산책 인증 완료' },
+      { memberId: 14, completedCount: 9, totalCount: 10, note: '저녁 산책 완료' },
+      { memberId: 3, completedCount: 8, totalCount: 10, note: '기록 확인 완료' },
+      { memberId: 1, completedCount: 8, totalCount: 10, note: '오늘 인증 완료' },
+      { memberId: 9, completedCount: 7, totalCount: 10, note: '퇴근 후 완료' },
+      { memberId: 2, completedCount: 7, totalCount: 10, note: '아침 산책 완료' },
+      { memberId: 11, completedCount: 6, totalCount: 10, note: '밤 산책 예정' },
+      { memberId: 5, completedCount: 6, totalCount: 10, note: '가벼운 산책 완료' },
+      { memberId: 7, completedCount: 5, totalCount: 10, note: '점심 산책 완료' },
+      { memberId: 15, completedCount: 5, totalCount: 10, note: '오늘 참여 완료' },
+      { memberId: 10, completedCount: 4, totalCount: 10, note: '저녁 체크 예정' },
+      { memberId: 4, completedCount: 4, totalCount: 10, note: '오후 기록 대기' },
+      { memberId: 12, completedCount: 3, totalCount: 10, note: '참여 기록 완료' },
+      { memberId: 8, completedCount: 3, totalCount: 10, note: '기록 대기' },
+      { memberId: 13, completedCount: 2, totalCount: 10, note: '첫 산책 완료' },
+    ],
+  },
+  {
+    id: 3,
+    title: '컨디션 기록',
+    summary: '잠들기 전 상태 체크',
+    isParticipating: true,
+    progress: [
+      { memberId: 5, completedCount: 10, totalCount: 10, note: '컨디션 체크 완료' },
+      { memberId: 12, completedCount: 10, totalCount: 10, note: '오늘 참여 완료' },
+      { memberId: 9, completedCount: 9, totalCount: 10, note: '체크리스트 완료' },
+      { memberId: 1, completedCount: 9, totalCount: 10, note: '오늘 인증 완료' },
+      { memberId: 13, completedCount: 8, totalCount: 10, note: '컨디션 기록 완료' },
+      { memberId: 2, completedCount: 8, totalCount: 10, note: '아침 체크 완료' },
+      { memberId: 11, completedCount: 7, totalCount: 10, note: '밤 기록 예정' },
+      { memberId: 7, completedCount: 7, totalCount: 10, note: '루틴 점검 완료' },
+      { memberId: 3, completedCount: 6, totalCount: 10, note: '저녁 기록 예정' },
+      { memberId: 15, completedCount: 6, totalCount: 10, note: '아침 루틴 완료' },
+      { memberId: 4, completedCount: 5, totalCount: 10, note: '오늘 체크 완료' },
+      { memberId: 8, completedCount: 5, totalCount: 10, note: '오후 기록 대기' },
+      { memberId: 6, completedCount: 4, totalCount: 10, note: '운동 후 기록 예정' },
+      { memberId: 10, completedCount: 4, totalCount: 10, note: '저녁 체크 예정' },
+      { memberId: 14, completedCount: 3, totalCount: 10, note: '밤 기록 대기' },
+    ],
+  },
+  {
+    id: 4,
+    title: '카페인 줄이기',
+    summary: '오후 2시 이후 카페인 쉬기',
+    isParticipating: true,
+    progress: [
+      { memberId: 8, completedCount: 9, totalCount: 10, note: '오후 기록 완료' },
+      { memberId: 2, completedCount: 8, totalCount: 10, note: '아침 체크 완료' },
+      { memberId: 11, completedCount: 8, totalCount: 10, note: '밤 기록 예정' },
+      { memberId: 1, completedCount: 7, totalCount: 10, note: '오늘 인증 완료' },
+      { memberId: 4, completedCount: 7, totalCount: 10, note: '저녁 기록 완료' },
+      { memberId: 13, completedCount: 6, totalCount: 10, note: '컨디션 기록 대기' },
+      { memberId: 5, completedCount: 5, totalCount: 10, note: '체크 예정' },
+      { memberId: 10, completedCount: 5, totalCount: 10, note: '저녁 체크 예정' },
+      { memberId: 6, completedCount: 4, totalCount: 10, note: '점심 체크 완료' },
+      { memberId: 15, completedCount: 4, totalCount: 10, note: '아침 루틴 완료' },
+    ],
+  },
+  {
+    id: 5,
+    title: '밤 루틴',
+    summary: '자기 전 정리 루틴 인증',
+    isParticipating: true,
+    progress: [
+      { memberId: 11, completedCount: 10, totalCount: 10, note: '밤 기록 예정' },
+      { memberId: 15, completedCount: 9, totalCount: 10, note: '아침 루틴 완료' },
+      { memberId: 3, completedCount: 8, totalCount: 10, note: '저녁 기록 예정' },
+      { memberId: 7, completedCount: 8, totalCount: 10, note: '루틴 점검 완료' },
+      { memberId: 1, completedCount: 7, totalCount: 10, note: '오늘 인증 완료' },
+      { memberId: 14, completedCount: 7, totalCount: 10, note: '밤 기록 대기' },
+      { memberId: 9, completedCount: 6, totalCount: 10, note: '체크리스트 완료' },
+      { memberId: 12, completedCount: 6, totalCount: 10, note: '오늘 참여 완료' },
+      { memberId: 4, completedCount: 5, totalCount: 10, note: '정리 완료' },
+      { memberId: 8, completedCount: 5, totalCount: 10, note: '오후 기록 대기' },
+    ],
+  },
+  {
+    id: 6,
+    title: '스트레칭',
+    summary: '가벼운 5분 스트레칭',
+    isParticipating: false,
+    progress: [
+      { memberId: 6, completedCount: 8, totalCount: 10, note: '산책 후 완료' },
+      { memberId: 14, completedCount: 8, totalCount: 10, note: '저녁 스트레칭 완료' },
+      { memberId: 2, completedCount: 7, totalCount: 10, note: '아침 체크 완료' },
+      { memberId: 5, completedCount: 6, totalCount: 10, note: '컨디션 체크 완료' },
+      { memberId: 10, completedCount: 5, totalCount: 10, note: '저녁 체크 예정' },
+      { memberId: 13, completedCount: 4, totalCount: 10, note: '첫 기록 완료' },
+    ],
+  },
+  {
+    id: 7,
+    title: '아침 루틴',
+    summary: '기상 후 루틴 체크',
+    isParticipating: false,
+    progress: [
+      { memberId: 15, completedCount: 9, totalCount: 10, note: '아침 루틴 완료' },
+      { memberId: 2, completedCount: 8, totalCount: 10, note: '아침 체크 완료' },
+      { memberId: 7, completedCount: 7, totalCount: 10, note: '루틴 점검 완료' },
+      { memberId: 1, completedCount: 6, totalCount: 10, note: '오늘 인증 완료' },
+      { memberId: 5, completedCount: 5, totalCount: 10, note: '체크 예정' },
+      { memberId: 9, completedCount: 4, totalCount: 10, note: '체크리스트 완료' },
+    ],
+  },
+  {
+    id: 8,
+    title: '샤워 루틴',
+    summary: '가벼운 샤워 기록',
+    isParticipating: false,
+    progress: [
+      { memberId: 4, completedCount: 8, totalCount: 10, note: '저녁 기록 완료' },
+      { memberId: 12, completedCount: 7, totalCount: 10, note: '오늘 참여 완료' },
+      { memberId: 8, completedCount: 6, totalCount: 10, note: '오후 기록 대기' },
+      { memberId: 3, completedCount: 5, totalCount: 10, note: '저녁 기록 예정' },
+      { memberId: 14, completedCount: 5, totalCount: 10, note: '오후 체크 완료' },
+      { memberId: 10, completedCount: 4, totalCount: 10, note: '저녁 체크 예정' },
+    ],
+  },
 ]
 
 type StoredAppState = {
   habits?: Array<Omit<Habit, 'createdAt'> & { createdAt?: string }>
   records?: RecordItem[]
   groups?: Array<Omit<Group, 'uploadedAt'> & { uploadedAt: string }>
+  groupChallengesByGroup?: GroupChallengeStore
 }
 
 const appStorageKey = 'chally:toss-app-state:v1'
@@ -122,6 +295,55 @@ function normalizeStoredGroups(groups: StoredAppState['groups']) {
     ...group,
     uploadedAt: new Date(group.uploadedAt),
   }))
+}
+
+function getGroupKey(group: Pick<Group, 'title'>) {
+  return group.title
+}
+
+function cloneGroupChallenges(challenges: GroupChallenge[] = groupChallenges): GroupChallenge[] {
+  return challenges.map((challenge) => ({
+    ...challenge,
+    progress: challenge.progress.map((progress) => ({ ...progress })),
+  }))
+}
+
+function normalizeStoredGroupChallengesByGroup(groupChallengesByGroup: StoredAppState['groupChallengesByGroup']) {
+  if (
+    groupChallengesByGroup == null ||
+    typeof groupChallengesByGroup !== 'object' ||
+    Array.isArray(groupChallengesByGroup)
+  ) {
+    return {}
+  }
+
+  return Object.entries(groupChallengesByGroup).reduce<GroupChallengeStore>((acc, [groupKey, challenges]) => {
+    if (Array.isArray(challenges)) {
+      acc[groupKey] = cloneGroupChallenges(challenges)
+    }
+    return acc
+  }, {})
+}
+
+function getChallengesForGroup(groupChallengeStore: GroupChallengeStore, group: Group) {
+  return groupChallengeStore[getGroupKey(group)] ?? cloneGroupChallenges()
+}
+
+function useEscapeKey(onEscape: () => void, enabled = true) {
+  useEffect(() => {
+    if (!enabled) {
+      return
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onEscape()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [enabled, onEscape])
 }
 
 function normalizeStoredRecords(records: StoredAppState['records']) {
@@ -175,7 +397,7 @@ function TopBar({
         </button>
         <button
           type="button"
-          className={screen === 'groups' || screen === 'groupDetail' ? 'active' : ''}
+          className={screen === 'groups' || screen === 'groupDetail' || screen === 'groupMembers' ? 'active' : ''}
           onClick={() => onMove('groups')}
         >
           모임
@@ -244,7 +466,7 @@ function MonthOverview({
     >
       <div className="month-overview-header">
         <button type="button" className="month-nav-button" onClick={() => moveMonth(-1)} aria-label="이전 달">
-          <img src={chevronLeftDoodleSrc} alt="" aria-hidden="true" />
+          <ChevronLeft className="ui-icon ui-icon--chevron" strokeWidth={2.2} aria-hidden="true" />
         </button>
         <h1>{currentMonth}월</h1>
         <button
@@ -254,7 +476,7 @@ function MonthOverview({
           disabled={currentMonth === currentCalendarMonth}
           aria-label="다음 달"
         >
-          <img src={chevronRightDoodleSrc} alt="" aria-hidden="true" />
+          <ChevronRight className="ui-icon ui-icon--chevron" strokeWidth={2.2} aria-hidden="true" />
         </button>
       </div>
       <div className="month-mini-weekdays" aria-hidden="true">
@@ -267,33 +489,33 @@ function MonthOverview({
         {Array.from({ length: calendarStartOffset }, (_, index) => (
           <i className="month-mini-empty" key={`empty-${index}`} />
         ))}
-        {calendarDays.map((day) => (
-          <button
-            type="button"
-            className={[
-              'month-mini-day',
-              markedDays.has(day) ? 'marked' : '',
-              currentMonth === currentCalendarMonth && day === currentCalendarDay ? 'today' : '',
-              currentMonth > currentCalendarMonth || (currentMonth === currentCalendarMonth && day > currentCalendarDay)
-                ? 'future'
-                : '',
-              selectedDay === day ? 'selected' : '',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-            onClick={() => {
-              const isFuture =
-                currentMonth > currentCalendarMonth || (currentMonth === currentCalendarMonth && day > currentCalendarDay)
-              if (!isFuture) {
+        {calendarDays.map((day) => {
+          const isFuture =
+            currentMonth > currentCalendarMonth || (currentMonth === currentCalendarMonth && day > currentCalendarDay)
+
+          return (
+            <button
+              type="button"
+              className={[
+                'month-mini-day',
+                markedDays.has(day) ? 'marked' : '',
+                currentMonth === currentCalendarMonth && day === currentCalendarDay ? 'today' : '',
+                isFuture ? 'future' : '',
+                selectedDay === day ? 'selected' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              disabled={isFuture}
+              onClick={() => {
                 setSelectedDay(day)
                 onDateChange({ month: currentMonth, day })
-              }
-            }}
-            key={day}
-          >
-            {day}
-          </button>
-        ))}
+              }}
+              key={day}
+            >
+              {day}
+            </button>
+          )
+        })}
       </div>
     </section>
   )
@@ -349,6 +571,11 @@ function normalizeRecordDate(date: string) {
 function formatISODateKorean(date: string) {
   const parts = getDateParts(date)
   return parts == null ? date : formatKoreanDate(parts.year, parts.month, parts.day)
+}
+
+function formatMemberJoinDate(date: string) {
+  const parts = getDateParts(date)
+  return parts == null ? date : `${parts.month}월 ${parts.day}일`
 }
 
 function getRecentDateRange(count: number) {
@@ -413,7 +640,7 @@ function Home({
             <h2>내 습관</h2>
           </div>
           <button type="button" className="text-button icon-add-button" onClick={onOpenHabit} aria-label="습관 추가">
-            +
+            <Plus className="ui-icon ui-icon--plus" strokeWidth={2.3} aria-hidden="true" />
           </button>
         </div>
 
@@ -518,7 +745,7 @@ function HabitDetail({
   onBack: () => void
   onRecord: () => void
 }) {
-  const [concept, setConcept] = useState<HabitDetailConcept>('summary')
+  const [concept, setConcept] = useState<HabitDetailConcept>('status1')
   const recordCount = records.length
   const recordDates = new Set(records.map((record) => normalizeRecordDate(record.date)))
   const weekDays = getRecentDateRange(7)
@@ -528,28 +755,27 @@ function HabitDetail({
   const completionText = todayDone ? '오늘 완료' : '오늘 미완료'
   const completionRatio = Math.round((weekDoneCount / weekDays.length) * 100)
   const conceptTabs: { id: HabitDetailConcept; label: string }[] = [
-    { id: 'summary', label: '상태' },
-    { id: 'check', label: '체크' },
-    { id: 'week', label: '주간' },
-    { id: 'history', label: '내역' },
-    { id: 'coach', label: '코치' },
+    { id: 'status1', label: '요약' },
+    { id: 'status2', label: '흐름' },
+    { id: 'status3', label: '주간' },
+    { id: 'status4', label: '기록' },
+    { id: 'status5', label: '다음' },
   ]
-  const recentRows = records.slice(-4).reverse()
+  const paceLabel = completionRatio >= 70 ? '안정적' : completionRatio >= 40 ? '유지 중' : '시작 단계'
+  const lastRecordText = lastRecord == null ? '아직 기록 없음' : formatISODateKorean(lastRecord.date)
 
   return (
     <main className="content detail-content">
       <section className="habit-detail-hero compact">
         <button type="button" className="back-button" onClick={onBack} aria-label="이전 화면">
-          ←
+          <ArrowLeft className="ui-icon ui-icon--back" strokeWidth={2.1} aria-hidden="true" />
         </button>
         <div>
-          <p className="eyebrow">습관 상세</p>
           <h1>{habit.title}</h1>
-          <span>{habit.category}</span>
         </div>
       </section>
 
-      <section className="detail-concept-tabs varied" aria-label="습관 상세 시안">
+      <section className="detail-concept-tabs varied" aria-label="상태 시안">
         {conceptTabs.map((tab, index) => (
           <button
             type="button"
@@ -562,8 +788,8 @@ function HabitDetail({
         ))}
       </section>
 
-      <section className={`habit-concept-panel ${concept}`} aria-label="습관 상세 내용">
-        {concept === 'summary' && (
+      <section className={`habit-concept-panel ${concept}`} aria-label="상태 내용">
+        {concept === 'status1' && (
           <>
             <div className="detail-summary-board">
               <span className={todayDone ? 'habit-status-badge done-inline' : 'habit-status-badge'}>{completionText}</span>
@@ -590,25 +816,34 @@ function HabitDetail({
           </>
         )}
 
-        {concept === 'check' && (
+        {concept === 'status2' && (
           <>
-            <div className="detail-check-card">
-              <span>{formatISODateKorean(todayIso)}</span>
-              <h2>{todayDone ? '이미 체크했어요' : '지금 체크할 수 있어요'}</h2>
-              <button type="button" className="primary-action detail-primary" onClick={onRecord} disabled={todayDone}>
-                {todayDone ? '완료됨' : '기록하기'}
-              </button>
+            <div className="detail-summary-board status-quiet-board">
+              <span className={todayDone ? 'habit-status-badge done-inline' : 'habit-status-badge'}>오늘 상태</span>
+              <h2>{todayDone ? '기록이 닫혔어요' : '아직 열려 있어요'}</h2>
+              <p>{formatISODateKorean(todayIso)} 기준으로 오늘 처리 상태만 먼저 보여줍니다.</p>
             </div>
-            <div className="detail-next-list">
-              <span>체크 후 달력과 내역에 바로 반영됩니다.</span>
-              <span>중복 기록은 같은 날짜에 한 번만 저장됩니다.</span>
+            <div className="status-progress-card">
+              <div>
+                <span>최근 7일 완성도</span>
+                <strong>{completionRatio}%</strong>
+              </div>
+              <div className="status-progress-track" aria-hidden="true">
+                <i style={{ width: `${completionRatio}%` }} />
+              </div>
+              <em>{weekDoneCount}일 기록, {7 - weekDoneCount}일 비어 있음</em>
+            </div>
+            <div className="status-action-row">
+              <button type="button" className="primary-action detail-primary" onClick={onRecord} disabled={todayDone}>
+                {todayDone ? '기록 완료' : '오늘 기록하기'}
+              </button>
             </div>
           </>
         )}
 
-        {concept === 'week' && (
+        {concept === 'status3' && (
           <>
-            <div className="week-strip-detail">
+            <div className="week-strip-detail status-week-strip">
               {weekDays.map((day) => (
                 <div className={recordDates.has(day.iso) ? 'done' : ''} key={day.iso}>
                   <span>{day.label}</span>
@@ -616,41 +851,63 @@ function HabitDetail({
                 </div>
               ))}
             </div>
-            <div className="detail-week-copy">
-              <h2>{weekDoneCount}일 채웠어요</h2>
-              <p>최근 7일 기준으로 이 습관이 얼마나 자주 돌아왔는지 보여줍니다.</p>
+            <div className="detail-summary-board status-week-board">
+              <span className={todayDone ? 'habit-status-badge done-inline' : 'habit-status-badge'}>{paceLabel}</span>
+              <h2>최근 7일 중 {weekDoneCount}일</h2>
+              <p>주간 흐름을 먼저 보고 오늘 기록 여부를 바로 판단하는 형태입니다.</p>
+            </div>
+            <div className="status-focus-grid">
+              <div>
+                <span>오늘</span>
+                <strong>{todayDone ? '완료' : '대기'}</strong>
+              </div>
+              <div>
+                <span>최근 기록</span>
+                <strong>{lastRecordText}</strong>
+              </div>
             </div>
           </>
         )}
 
-        {concept === 'history' && (
+        {concept === 'status4' && (
           <>
-            <div className="receipt-list detail-history-list">
-              {(recentRows.length > 0 ? recentRows : [{ id: 0, date: todayIso, memo: '기록 없음', habitTitle: habit.title, habitId: habit.id }]).map((record) => (
-                <article className="receipt-row" key={record.id}>
-                  <span className="receipt-dot">{habit.title.slice(0, 1)}</span>
-                  <div>
-                    <strong>{formatISODateKorean(record.date)}</strong>
-                    <span>{record.memo}</span>
-                  </div>
-                  <em>{record.id === 0 ? '-' : '완료'}</em>
-                </article>
-              ))}
+            <div className="detail-summary-board status-line-board">
+              <span className={todayDone ? 'habit-status-badge done-inline' : 'habit-status-badge'}>기록 상태</span>
+              <h2>{recordCount}번 쌓였어요</h2>
+              <p>상세한 내역보다 현재 누적과 최신 상태를 압축해서 보여주는 시안입니다.</p>
+            </div>
+            <div className="status-check-list">
+              <article>
+                <span>최근 기록</span>
+                <strong>{lastRecordText}</strong>
+              </article>
+              <article>
+                <span>오늘 처리</span>
+                <strong>{todayDone ? '완료' : '미완료'}</strong>
+              </article>
+              <article>
+                <span>주간 페이스</span>
+                <strong>{paceLabel}</strong>
+              </article>
             </div>
           </>
         )}
 
-        {concept === 'coach' && (
+        {concept === 'status5' && (
           <>
-            <div className="coach-card">
-              <span>오늘의 코칭</span>
-              <h2>{todayDone ? '오늘은 더 밀지 않아도 돼요' : '완벽함보다 체크가 먼저예요'}</h2>
-              <p>{todayDone ? '내일 다시 돌아올 수 있게 부담을 낮게 유지하세요.' : '작게라도 끝낸 표시를 남기는 게 다음 방문을 만듭니다.'}</p>
+            <div className="detail-summary-board status-soft-board">
+              <span className={todayDone ? 'habit-status-badge done-inline' : 'habit-status-badge'}>다음 상태</span>
+              <h2>{todayDone ? '내일 다시 이어가요' : '오늘 표시만 남겨요'}</h2>
+              <p>{todayDone ? '오늘 기록은 완료됐고 다음 체크만 남았습니다.' : '기록 버튼을 누르면 랭크와 달력에 바로 반영됩니다.'}</p>
             </div>
-            <div className="coach-actions">
-              <button type="button" onClick={onRecord} disabled={todayDone}>{todayDone ? '완료됨' : '기록'}</button>
-              <button type="button" onClick={onBack}>목록</button>
+            <div className="detail-next-list status-next-list">
+              <span>오늘 상태: {todayDone ? '완료' : '대기'}</span>
+              <span>이번 주: {weekDoneCount}/7</span>
+              <span>전체 기록: {recordCount}회</span>
             </div>
+            <button type="button" className="primary-action detail-primary" onClick={onRecord} disabled={todayDone}>
+              {todayDone ? '기록 완료' : '오늘 기록하기'}
+            </button>
           </>
         )}
       </section>
@@ -659,23 +916,22 @@ function HabitDetail({
 }
 function Groups({
   groups,
-  habits,
   onOpenGroup,
   onCreateGroup,
+  getChallengeCount,
 }: {
   groups: Group[]
-  habits: Habit[]
   onOpenGroup: (group: Group) => void
   onCreateGroup: () => void
+  getChallengeCount: (group: Group) => number
 }) {
   const [query, setQuery] = useState('')
   const normalizedQuery = query.trim().toLowerCase()
   const joinedGroups = groups.filter((group) =>
-    `${group.title} ${group.category}`.toLowerCase().includes(normalizedQuery),
+    group.title.toLowerCase().includes(normalizedQuery),
   )
-  const preferredKeywords = getPreferredGroupKeywords(habits)
-  const filteredRecommendedGroups = getRecommendedGroups(preferredKeywords).filter((group) =>
-    `${group.title} ${group.category}`.toLowerCase().includes(normalizedQuery),
+  const filteredRecommendedGroups = getRecommendedGroups().filter((group) =>
+    group.title.toLowerCase().includes(normalizedQuery),
   )
 
   return (
@@ -683,11 +939,11 @@ function Groups({
       <section className="group-search">
         <label>
           <span className="sr-only">모임 검색</span>
-          <span className="search-icon" aria-hidden="true">⌕</span>
+          <Search className="ui-icon search-icon" strokeWidth={2.1} aria-hidden="true" />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="모임 이름이나 카테고리 검색"
+            placeholder="모임 이름 검색"
           />
         </label>
       </section>
@@ -698,7 +954,7 @@ function Groups({
             <h2>참여 중인 모임</h2>
           </div>
           <button type="button" className="text-button icon-add-button" onClick={onCreateGroup} aria-label="모임 만들기">
-            +
+            <Plus className="ui-icon ui-icon--plus" strokeWidth={2.3} aria-hidden="true" />
           </button>
         </div>
 
@@ -716,8 +972,8 @@ function Groups({
                 onClick={() => onOpenGroup(group)}
                 key={group.id}
               >
-                <span className="keyword-badge">{group.category.slice(0, 2)}</span>
                 <strong>{group.title}</strong>
+                <span>{getGroupMemberCount(group)}명 · 챌린지 {getChallengeCount(group)}개</span>
               </button>
             ))}
           </div>
@@ -734,10 +990,10 @@ function Groups({
         <div className="joined-group-grid recommend-section">
           {filteredRecommendedGroups.map((group) => (
             <button type="button" className="joined-group-card recommended-summary" onClick={() => onOpenGroup(group)} key={group.id}>
-              <VisibilityDoodle isPrivate={group.isPrivate} />
+              <VisibilityIcon isPrivate={group.isPrivate} />
               <div className="joined-group-card-head">
-                <span className="keyword-badge">{group.category.slice(0, 2)}</span>
                 <strong>{group.title}</strong>
+                <span>{group.isPrivate ? '키 확인 후 참여' : '바로 참여 가능'}</span>
               </div>
               <div className="joined-group-stats" aria-label="추천 모임 요약">
                 <span>
@@ -749,7 +1005,7 @@ function Groups({
                   최근
                 </span>
                 <span>
-                  <strong>{getGroupChallengeCount(group)}</strong>
+                  <strong>{getChallengeCount(group)}</strong>
                   챌린지
                 </span>
               </div>
@@ -761,25 +1017,9 @@ function Groups({
   )
 }
 
-function getPreferredGroupKeywords(habits: Habit[]) {
-  const counts = habits.reduce<Record<string, number>>((acc, habit) => {
-    acc[habit.category] = (acc[habit.category] ?? 0) + 1
-    return acc
-  }, {})
-
-  return Object.entries(counts)
-    .sort((a, b) => b[1] - a[1])
-    .map(([keyword]) => keyword)
-    .slice(0, 4)
-}
-
-function getRecommendedGroups(preferredKeywords: string[]) {
+function getRecommendedGroups() {
   return [...recommendedGroups]
-    .sort((a, b) => {
-      const aScore = preferredKeywords.includes(a.category) ? preferredKeywords.length - preferredKeywords.indexOf(a.category) : 0
-      const bScore = preferredKeywords.includes(b.category) ? preferredKeywords.length - preferredKeywords.indexOf(b.category) : 0
-      return bScore - aScore
-    })
+    .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime())
     .slice(0, 4)
 }
 
@@ -809,97 +1049,482 @@ function formatLatestUploadTime(uploadedAt: Date) {
   return `${Math.floor(diffMinutes / (24 * 60))}d`
 }
 
-function getGroupMemberCount(group: Group) {
-  return (group.id % 3) + 1
+function getGroupMemberCount(_group: Group) {
+  return groupMembers.length
 }
 
-function getGroupChallengeCount(group: Group) {
-  return group.isPrivate ? 1 : group.id % 4
-}
+function VisibilityIcon({ isPrivate }: { isPrivate: boolean }) {
+  const Icon = isPrivate ? Lock : LockOpen
 
-function VisibilityDoodle({ isPrivate }: { isPrivate: boolean }) {
   return (
-    <img
-      className="visibility-doodle"
-      src={isPrivate ? lockClosedDoodleSrc : lockOpenDoodleSrc}
-      alt={isPrivate ? '비공개 모임' : '공개 모임'}
-      loading="eager"
-      decoding="async"
-    />
+    <span className="visibility-icon-wrap">
+      <Icon className="ui-icon ui-icon--lock visibility-icon" strokeWidth={2.1} aria-hidden="true" />
+      <span className="sr-only">{isPrivate ? '비공개 모임' : '공개 모임'}</span>
+    </span>
   )
 }
 
 function GroupDetail({
   group,
-  isJoined,
+  challenges,
   onBack,
-  onJoin,
+  onOpenMembers,
+  onCreateChallenge,
+  onJoinChallenge,
+  onRecordChallenge,
 }: {
   group: Group
-  isJoined: boolean
+  challenges: GroupChallenge[]
   onBack: () => void
-  onJoin: () => void
+  onOpenMembers: () => void
+  onCreateChallenge: (challenge: GroupChallenge) => void
+  onJoinChallenge: (challengeId: number) => void
+  onRecordChallenge: (challengeId: number) => void
 }) {
-  const rankedMembers = [...groupMembers].sort((a, b) => {
-    const completionDiff = b.completedCount - a.completedCount
-    return completionDiff === 0 ? b.streak - a.streak : completionDiff
-  })
+  const initialRankableChallenge = challenges.find((challenge) => challenge.isParticipating) ?? challenges[0]
+  const [selectedChallengeId, setSelectedChallengeId] = useState(initialRankableChallenge.id)
+  const [availableChallengePage, setAvailableChallengePage] = useState(0)
+  const [joinedChallengePage, setJoinedChallengePage] = useState(0)
+  const [challengeSheetMode, setChallengeSheetMode] = useState<'menu' | 'create' | 'record' | null>(null)
+  const [pendingJoinChallenge, setPendingJoinChallenge] = useState<GroupChallenge | null>(null)
+  const [newChallengeTitle, setNewChallengeTitle] = useState('')
+  const [newChallengeSummary, setNewChallengeSummary] = useState('')
+  const [recordChallengeId, setRecordChallengeId] = useState(initialRankableChallenge.id)
+  const allGroupChallenges = challenges
+  const availableChallenges = allGroupChallenges.filter((challenge) => !challenge.isParticipating)
+  const participatingChallenges = allGroupChallenges.filter((challenge) => challenge.isParticipating)
+  const rankableChallenges = participatingChallenges.length > 0 ? participatingChallenges : allGroupChallenges
+  const availableChallengePages = availableChallenges.reduce<GroupChallenge[][]>((pages, challenge, index) => {
+    if (index % 3 === 0) {
+      pages.push([])
+    }
+    pages[pages.length - 1].push(challenge)
+    return pages
+  }, [])
+  const joinedChallengePages = participatingChallenges.reduce<GroupChallenge[][]>((pages, challenge, index) => {
+    if (index % 3 === 0) {
+      pages.push([])
+    }
+    pages[pages.length - 1].push(challenge)
+    return pages
+  }, [])
+  const availablePageCount = Math.max(1, availableChallengePages.length)
+  const activeAvailablePage = Math.min(availableChallengePage, availablePageCount - 1)
+  const joinedPageCount = Math.max(1, joinedChallengePages.length)
+  const activeJoinedPage = Math.min(joinedChallengePage, joinedPageCount - 1)
+  const selectedChallenge = rankableChallenges.find((challenge) => challenge.id === selectedChallengeId) ?? rankableChallenges[0]
+  const progressByMember = new Map(selectedChallenge.progress.map((progress) => [progress.memberId, progress]))
+  const membersWithProgress = groupMembers.map((member) => ({
+    ...member,
+    progress: progressByMember.get(member.id) ?? {
+      memberId: member.id,
+      completedCount: 0,
+      totalCount: selectedChallenge.progress[0]?.totalCount ?? 0,
+      note: member.status,
+    },
+  }))
+  const rankedMembers = [...membersWithProgress]
+    .sort((a, b) => {
+      const completionDiff = b.progress.completedCount - a.progress.completedCount
+      return completionDiff === 0 ? a.name.localeCompare(b.name, 'ko') : completionDiff
+    })
+    .slice(0, 5)
+
+  useEffect(() => {
+    if (availableChallengePage > availablePageCount - 1) {
+      setAvailableChallengePage(availablePageCount - 1)
+    }
+  }, [availableChallengePage, availablePageCount])
+
+  useEffect(() => {
+    if (joinedChallengePage > joinedPageCount - 1) {
+      setJoinedChallengePage(joinedPageCount - 1)
+    }
+  }, [joinedChallengePage, joinedPageCount])
+
+  function moveJoinedChallengePage(pageIndex: number) {
+    setJoinedChallengePage(pageIndex)
+    const firstChallenge = joinedChallengePages[pageIndex]?.[0]
+    if (firstChallenge != null) {
+      setSelectedChallengeId(firstChallenge.id)
+    }
+  }
+
+  function openChallengeMenu() {
+    setChallengeSheetMode('menu')
+  }
+
+  function openRecordSheet() {
+    setRecordChallengeId(selectedChallenge.id)
+    setChallengeSheetMode('record')
+  }
+
+  function closeChallengeSheet() {
+    setChallengeSheetMode(null)
+    setNewChallengeTitle('')
+    setNewChallengeSummary('')
+  }
+
+  function createGroupChallenge(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const title = newChallengeTitle.trim()
+    if (title.length === 0) {
+      return
+    }
+
+    const nextChallengeId = Math.max(...allGroupChallenges.map((challenge) => challenge.id), 0) + 1
+    const nextChallenge: GroupChallenge = {
+      id: nextChallengeId,
+      title,
+      summary: newChallengeSummary.trim() || '새 기록을 준비해요',
+      isParticipating: false,
+      progress: [],
+    }
+
+    onCreateChallenge(nextChallenge)
+    setAvailableChallengePage(Math.floor(availableChallenges.length / 3))
+    closeChallengeSheet()
+  }
+
+  function recordSelectedChallenge(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!participatingChallenges.some((challenge) => challenge.id === recordChallengeId)) {
+      return
+    }
+
+    onRecordChallenge(recordChallengeId)
+    setSelectedChallengeId(recordChallengeId)
+    closeChallengeSheet()
+  }
+
+  function confirmJoinChallenge() {
+    if (pendingJoinChallenge == null) {
+      return
+    }
+
+    const nextJoinedIndex = allGroupChallenges
+      .filter((challenge) => challenge.isParticipating || challenge.id === pendingJoinChallenge.id)
+      .findIndex((challenge) => challenge.id === pendingJoinChallenge.id)
+
+    onJoinChallenge(pendingJoinChallenge.id)
+    setSelectedChallengeId(pendingJoinChallenge.id)
+    setJoinedChallengePage(Math.max(0, Math.floor(nextJoinedIndex / 3)))
+    setPendingJoinChallenge(null)
+  }
+
+  useEscapeKey(() => {
+    if (pendingJoinChallenge != null) {
+      setPendingJoinChallenge(null)
+      return
+    }
+
+    closeChallengeSheet()
+  }, challengeSheetMode != null || pendingJoinChallenge != null)
 
   return (
     <main className="content detail-content">
       <section className="group-detail-hero">
         <button type="button" className="back-button" onClick={onBack} aria-label="이전 화면">
-          ←
+          <ArrowLeft className="ui-icon ui-icon--back" strokeWidth={2.1} aria-hidden="true" />
         </button>
         <div>
           <div className="group-detail-title">
             <div className="group-title-row">
-              <span className="keyword-badge">{group.category.slice(0, 2)}</span>
               <h1>{group.title}</h1>
             </div>
-            <VisibilityDoodle isPrivate={group.isPrivate} />
+            <div className="member-menu-wrap">
+              <button
+                type="button"
+                className="member-icon-button"
+                onClick={onOpenMembers}
+                aria-label={`멤버 ${groupMembers.length}명 보기`}
+              >
+                <UsersRound className="ui-icon ui-icon--member" strokeWidth={2} aria-hidden="true" />
+              </button>
+            </div>
           </div>
-          <span>{group.category}</span>
         </div>
       </section>
 
-      <section className="group-status-panel">
-        <h2>같이 하는 멤버</h2>
-        <div className="member-list">
-          {groupMembers.map((member) => (
-            <article className="member-row" key={member.id}>
+      <section className="group-status-panel challenge-panel">
+        <div className="challenge-track-section ongoing-challenge-track">
+          <div className="panel-heading-row track-heading">
+            <div>
+              <h2>진행중인 챌린지</h2>
+            </div>
+            <div className="challenge-page-dots" aria-label="진행중인 챌린지 페이지">
+              {Array.from({ length: availablePageCount }, (_, index) => (
+                <button
+                  type="button"
+                  className={activeAvailablePage === index ? 'active' : ''}
+                  onClick={() => setAvailableChallengePage(index)}
+                  aria-label={`${index + 1}페이지`}
+                  key={index}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="available-challenge-slider" aria-label="진행중인 챌린지">
+            <div className="available-challenge-pages" style={{ transform: `translateX(-${activeAvailablePage * 100}%)` }}>
+              {availableChallengePages.map((page, pageIndex) => (
+                <div className="available-challenge-page" key={pageIndex}>
+                  {page.map((challenge) => (
+                    <button
+                      type="button"
+                      className="available-challenge-card"
+                      onClick={() => setPendingJoinChallenge(challenge)}
+                      key={challenge.id}
+                    >
+                      <strong>{challenge.title}</strong>
+                      <span>{challenge.summary}</span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="challenge-track-section joined-rank-track">
+          <div className="joined-rank-card" aria-label="참여중 챌린지와 멤버 랭크">
+            <div className="panel-heading-row track-heading">
               <div>
-                <strong>{member.name}</strong>
-                <span>{member.status}</span>
+                <h2>참여중</h2>
               </div>
-              <span className="member-progress">
-                {member.completedCount}/{member.totalCount}
-              </span>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="group-status-panel">
-        <h2>멤버 랭크</h2>
-        <div className="member-rank-list">
-          {rankedMembers.map((member, index) => (
-            <article className="member-rank-row" key={member.id}>
-              <span className="rank-number">{index + 1}</span>
+              <div className="challenge-page-dots" aria-label="참여중 챌린지 페이지">
+                {Array.from({ length: joinedPageCount }, (_, index) => (
+                  <button
+                    type="button"
+                    className={activeJoinedPage === index ? 'active' : ''}
+                    onClick={() => moveJoinedChallengePage(index)}
+                    aria-label={`${index + 1}페이지`}
+                    key={index}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="joined-challenge-slider" aria-label="참여중인 챌린지">
+              <div className="joined-challenge-pages" style={{ transform: `translateX(-${activeJoinedPage * 100}%)` }}>
+                {joinedChallengePages.map((page, pageIndex) => (
+                  <div className="joined-challenge-page" key={pageIndex}>
+                    {page.map((challenge) => (
+                      <button
+                        type="button"
+                        className={selectedChallenge.id === challenge.id ? 'active' : ''}
+                        onClick={() => setSelectedChallengeId(challenge.id)}
+                        key={challenge.id}
+                      >
+                        <strong>{challenge.title}</strong>
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="joined-rank-divider" />
+            <div className="panel-heading-row challenge-rank-head joined-rank-head">
               <div>
-                <strong>{member.name}</strong>
-                <span>{member.streak}일째 이어가는 중</span>
+                <h2>멤버 랭크</h2>
               </div>
-              <span className="rank-score">
-                {member.completedCount}/{member.totalCount}
-              </span>
-            </article>
-          ))}
+            </div>
+            <div className="member-rank-list">
+              {rankedMembers.map((member, index) => (
+                <article className="member-rank-row" key={member.id}>
+                  <span className={index < 3 ? 'rank-number top-rank' : 'rank-number'}>{index + 1}</span>
+                  <div>
+                    <strong>{member.name}</strong>
+                  </div>
+                  <span className="rank-score">{member.progress.completedCount}회</span>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+        <button type="button" className="challenge-fab" onClick={openChallengeMenu} aria-label="챌린지 만들기와 기록">
+          <Plus className="ui-icon ui-icon--fab" strokeWidth={3} aria-hidden="true" />
+        </button>
+      </section>
+
+      {challengeSheetMode != null && (
+        <div className="modal-backdrop challenge-action-backdrop" role="presentation" onClick={closeChallengeSheet}>
+          <section
+            className="challenge-action-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label="챌린지 작업"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {challengeSheetMode === 'menu' && (
+              <>
+                <div className="challenge-action-head">
+                  <h2>챌린지 작업</h2>
+                  <button type="button" onClick={closeChallengeSheet} aria-label="닫기">
+                    닫기
+                  </button>
+                </div>
+                <div className="challenge-action-options">
+                  <button type="button" onClick={() => setChallengeSheetMode('create')}>
+                    <strong>챌린지 만들기</strong>
+                  </button>
+                  <button type="button" onClick={openRecordSheet}>
+                    <strong>기록 남기기</strong>
+                  </button>
+                </div>
+              </>
+            )}
+
+            {challengeSheetMode === 'create' && (
+              <form className="challenge-action-form" onSubmit={createGroupChallenge}>
+                <div className="challenge-action-head">
+                  <h2>챌린지 만들기</h2>
+                  <button type="button" onClick={closeChallengeSheet} aria-label="닫기">
+                    닫기
+                  </button>
+                </div>
+                <label>
+                  <span>이름</span>
+                  <input
+                    value={newChallengeTitle}
+                    onChange={(event) => setNewChallengeTitle(event.target.value)}
+                    maxLength={16}
+                    placeholder="예: 저녁 산책"
+                  />
+                </label>
+                <label>
+                  <span>설명</span>
+                  <input
+                    value={newChallengeSummary}
+                    onChange={(event) => setNewChallengeSummary(event.target.value)}
+                    maxLength={24}
+                    placeholder="예: 20분 걷기 인증"
+                  />
+                </label>
+                <button type="submit" className="challenge-action-primary">
+                  만들기
+                </button>
+              </form>
+            )}
+
+            {challengeSheetMode === 'record' && (
+              <form className="challenge-action-form" onSubmit={recordSelectedChallenge}>
+                <div className="challenge-action-head">
+                  <h2>기록 남기기</h2>
+                  <button type="button" onClick={closeChallengeSheet} aria-label="닫기">
+                    닫기
+                  </button>
+                </div>
+                <div className="record-challenge-list" aria-label="기록할 챌린지 선택">
+                  {participatingChallenges.map((challenge) => (
+                    <button
+                      type="button"
+                      className={recordChallengeId === challenge.id ? 'active' : ''}
+                      onClick={() => setRecordChallengeId(challenge.id)}
+                      key={challenge.id}
+                    >
+                      {challenge.title}
+                    </button>
+                  ))}
+                </div>
+                <button type="submit" className="challenge-action-primary">
+                  기록하기
+                </button>
+              </form>
+            )}
+          </section>
+        </div>
+      )}
+
+      {pendingJoinChallenge != null && (
+        <div className="modal-backdrop challenge-action-backdrop" role="presentation" onClick={() => setPendingJoinChallenge(null)}>
+          <section
+            className="private-gate-card join-gate-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="challenge-join-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div>
+              <h2 id="challenge-join-title">{pendingJoinChallenge.title}</h2>
+              <p>이 챌린지에 참여하시겠습니까?</p>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="cancel-button" onClick={() => setPendingJoinChallenge(null)}>
+                취소
+              </button>
+              <button type="button" className="submit-button" onClick={confirmJoinChallenge}>
+                참여하기
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+    </main>
+  )
+}
+
+function GroupMembersPage({
+  challenges,
+  onBack,
+  onLeave,
+}: {
+  challenges: GroupChallenge[]
+  onBack: () => void
+  onLeave: () => void
+}) {
+  const averageCompletedCount = Math.round(
+    groupMembers.reduce((sum, member) => {
+      const memberCompletedCount = challenges.reduce((total, challenge) => {
+        const progress = challenge.progress.find((item) => item.memberId === member.id)
+        return total + (progress?.completedCount ?? 0)
+      }, 0)
+      return sum + memberCompletedCount
+    }, 0) / Math.max(1, groupMembers.length),
+  )
+
+  return (
+    <main className="content detail-content member-detail-content">
+      <section className="group-detail-hero">
+        <button type="button" className="back-button" onClick={onBack} aria-label="이전 화면">
+          <ArrowLeft className="ui-icon ui-icon--back" strokeWidth={2.1} aria-hidden="true" />
+        </button>
+        <div>
+          <h1 className="member-page-title">멤버</h1>
         </div>
       </section>
 
-      <button type="button" className="primary-action detail-primary" onClick={onJoin} disabled={isJoined}>
-        {isJoined ? '참여 중' : '참여하기'}
+      <section className="member-page-summary" aria-label="멤버 요약">
+        <div>
+          <span>멤버</span>
+          <strong>{groupMembers.length}명</strong>
+        </div>
+        <div>
+          <span>챌린지</span>
+          <strong>{challenges.length}개</strong>
+        </div>
+        <div>
+          <span>평균 기록</span>
+          <strong>{averageCompletedCount}회</strong>
+        </div>
+      </section>
+
+      <section className="member-page-list" aria-label="멤버 목록">
+        {groupMembers.map((member) => (
+          <article className="member-detail-card" key={member.id}>
+            <span className="member-avatar" aria-hidden="true">
+              <UserRound className="ui-icon member-avatar-icon" strokeWidth={2.1} />
+            </span>
+            <div>
+              <strong>{member.name}</strong>
+            </div>
+            <time dateTime={member.joinedAt}>{formatMemberJoinDate(member.joinedAt)}</time>
+          </article>
+        ))}
+      </section>
+
+      <button type="button" className="leave-group-button" onClick={onLeave}>
+        탈퇴하기
       </button>
     </main>
   )
@@ -930,16 +1555,14 @@ function AppModal({
   const [isHabitMenuOpen, setIsHabitMenuOpen] = useState(false)
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
   const [habitTitle, setHabitTitle] = useState('')
-  const [habitCategory, setHabitCategory] = useState('')
   const [groupTitle, setGroupTitle] = useState('')
-  const [groupCategory, setGroupCategory] = useState('')
   const [isPrivate, setIsPrivate] = useState(false)
   const [privateKey, setPrivateKey] = useState('')
 
   const canRecord = habitId !== ''
   const hasPrivateKey = !isPrivate || privateKey.trim().length > 0
-  const canCreateHabit = habitTitle.trim().length > 0 && habitCategory.trim().length === 2
-  const canCreateGroup = groupTitle.trim().length > 0 && groupCategory.trim().length === 2 && hasPrivateKey
+  const canCreateHabit = habitTitle.trim().length > 0
+  const canCreateGroup = groupTitle.trim().length > 0 && hasPrivateKey
   const selectedHabit = habits.find((habit) => habit.id.toString() === habitId)
   const dateDays = Array.from({ length: getDaysInMonth(calendarYear, datePickerMonth) }, (_, index) => index + 1)
 
@@ -959,7 +1582,6 @@ function AppModal({
     if (tab === 'habit' && canCreateHabit) {
       onCreateHabit({
         title: habitTitle.trim(),
-        category: habitCategory.trim(),
       })
       onClose()
       return
@@ -968,13 +1590,14 @@ function AppModal({
     if (tab === 'group' && canCreateGroup) {
       onCreateGroup({
         title: groupTitle.trim(),
-        category: groupCategory.trim(),
         isPrivate,
         privateKey: isPrivate ? privateKey.trim() : undefined,
       })
       onClose()
     }
   }
+
+  useEscapeKey(onClose)
 
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
@@ -1100,15 +1723,6 @@ function AppModal({
                   onChange={(event) => setHabitTitle(event.target.value)}
                 />
               </label>
-              <label>
-                카테고리 (2글자)
-                <input
-                  maxLength={2}
-                  placeholder="예) 운동"
-                  value={habitCategory}
-                  onChange={(event) => setHabitCategory(event.target.value)}
-                />
-              </label>
               <div className="modal-actions">
                 <button type="button" className="cancel-button" onClick={onClose}>
                   취소
@@ -1128,15 +1742,6 @@ function AppModal({
                   placeholder="모임 제목을 입력하세요"
                   value={groupTitle}
                   onChange={(event) => setGroupTitle(event.target.value)}
-                />
-              </label>
-              <label>
-                카테고리 (2글자)
-                <input
-                  maxLength={2}
-                  placeholder="예) 운동"
-                  value={groupCategory}
-                  onChange={(event) => setGroupCategory(event.target.value)}
                 />
               </label>
               <label className="checkbox-row">
@@ -1193,12 +1798,14 @@ function PrivateGroupGate({
   onClose: () => void
   onSubmit: () => void
 }) {
+  useEscapeKey(onClose)
+
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <section className="private-gate-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
         <div>
-          <span className="keyword-badge">{group.category.slice(0, 2)}</span>
           <h2>{group.title}</h2>
+          <span className="modal-status-line">비공개 모임 · 멤버 {getGroupMemberCount(group)}명</span>
           <p>비공개 모임은 키를 확인한 뒤 상세를 볼 수 있어요.</p>
         </div>
         <label>
@@ -1229,6 +1836,38 @@ function PrivateGroupGate({
   )
 }
 
+function GroupJoinGate({
+  group,
+  onClose,
+  onSubmit,
+}: {
+  group: Group
+  onClose: () => void
+  onSubmit: () => void
+}) {
+  useEscapeKey(onClose)
+
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <section className="private-gate-card join-gate-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+        <div>
+          <h2>{group.title}</h2>
+          <span className="modal-status-line">공개 모임 · 멤버 {getGroupMemberCount(group)}명</span>
+          <p>이 모임에 참여하시겠습니까?</p>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="cancel-button" onClick={onClose}>
+            취소
+          </button>
+          <button type="button" className="submit-button" onClick={onSubmit}>
+            참여하기
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 function App() {
   const storedState = useMemo(readStoredAppState, [])
   const [screen, setScreen] = useState<Screen>('home')
@@ -1236,6 +1875,7 @@ function App() {
   const [selectedHabitId, setSelectedHabitId] = useState<number | undefined>()
   const [detailHabitId, setDetailHabitId] = useState<number | null>(null)
   const [detailGroup, setDetailGroup] = useState<Group | null>(null)
+  const [pendingJoinGroup, setPendingJoinGroup] = useState<Group | null>(null)
   const [pendingPrivateGroup, setPendingPrivateGroup] = useState<Group | null>(null)
   const [privateGroupKey, setPrivateGroupKey] = useState('')
   const [privateGroupError, setPrivateGroupError] = useState('')
@@ -1246,6 +1886,9 @@ function App() {
     normalizeStoredHabits(storedState.habits, normalizeStoredRecords(storedState.records)),
   )
   const [groups, setGroups] = useState<Group[]>(() => normalizeStoredGroups(storedState.groups))
+  const [groupChallengeStore, setGroupChallengeStore] = useState<GroupChallengeStore>(() =>
+    normalizeStoredGroupChallengesByGroup(storedState.groupChallengesByGroup),
+  )
 
   const nextHabitId = useMemo(() => Math.max(0, ...habits.map((habit) => habit.id)) + 1, [habits])
   const nextRecordId = useMemo(() => Math.max(0, ...records.map((record) => record.id)) + 1, [records])
@@ -1259,7 +1902,7 @@ function App() {
     detailHabitBase == null ? undefined : { ...detailHabitBase, completed: todayRecordHabitIds.has(detailHabitBase.id) }
   const activeGroup =
     detailGroup == null ? null : groups.find((group) => group.title === detailGroup.title) ?? detailGroup
-  const isActiveGroupJoined = activeGroup == null ? false : groups.some((group) => group.title === activeGroup.title)
+  const activeGroupChallenges = activeGroup == null ? [] : getChallengesForGroup(groupChallengeStore, activeGroup)
 
   useEffect(() => {
     const payload: StoredAppState = {
@@ -1267,19 +1910,20 @@ function App() {
       records,
       groups: groups.map((group) => ({
         ...group,
-        uploadedAt: group.uploadedAt.toISOString(),
-      })),
+          uploadedAt: group.uploadedAt.toISOString(),
+        })),
+      groupChallengesByGroup: groupChallengeStore,
     }
 
     window.localStorage.setItem(appStorageKey, JSON.stringify(payload))
-  }, [groups, habits, records])
+  }, [groupChallengeStore, groups, habits, records])
 
   function moveScreen(nextScreen: Screen) {
     setScreen(nextScreen)
     if (nextScreen !== 'habitDetail') {
       setDetailHabitId(null)
     }
-    if (nextScreen !== 'groupDetail') {
+    if (nextScreen !== 'groupDetail' && nextScreen !== 'groupMembers') {
       setDetailGroup(null)
     }
   }
@@ -1298,14 +1942,27 @@ function App() {
       return
     }
 
+    if (!isJoined) {
+      setPendingJoinGroup(group)
+      return
+    }
+
     setDetailGroup(group)
     setScreen('groupDetail')
+  }
+
+  function openGroupMembers() {
+    setScreen('groupMembers')
   }
 
   function closePrivateGroupGate() {
     setPendingPrivateGroup(null)
     setPrivateGroupKey('')
     setPrivateGroupError('')
+  }
+
+  function closeGroupJoinGate() {
+    setPendingJoinGroup(null)
   }
 
   function confirmPrivateGroupKey() {
@@ -1318,9 +1975,21 @@ function App() {
       return
     }
 
+    joinGroup(pendingPrivateGroup)
     setDetailGroup(pendingPrivateGroup)
     setScreen('groupDetail')
     closePrivateGroupGate()
+  }
+
+  function confirmGroupJoin() {
+    if (pendingJoinGroup == null) {
+      return
+    }
+
+    joinGroup(pendingJoinGroup)
+    setDetailGroup(pendingJoinGroup)
+    setScreen('groupDetail')
+    closeGroupJoinGate()
   }
 
   function openRecord(habitId?: number) {
@@ -1348,6 +2017,92 @@ function App() {
       }
       return [...current, { ...group, id: nextGroupId }]
     })
+  }
+
+  function leaveActiveGroup() {
+    if (activeGroup == null) {
+      return
+    }
+
+    setGroups((current) => current.filter((group) => group.title !== activeGroup.title))
+    setDetailGroup(null)
+    setScreen('groups')
+  }
+
+  function updateGroupChallenges(group: Group, updater: (challenges: GroupChallenge[]) => GroupChallenge[]) {
+    setGroupChallengeStore((current) => {
+      const groupKey = getGroupKey(group)
+      const currentChallenges = getChallengesForGroup(current, group)
+
+      return {
+        ...current,
+        [groupKey]: updater(currentChallenges),
+      }
+    })
+  }
+
+  function createGroupChallenge(group: Group, challenge: GroupChallenge) {
+    updateGroupChallenges(group, (currentChallenges) => [...currentChallenges, challenge])
+  }
+
+  function joinGroupChallenge(group: Group, challengeId: number) {
+    const currentUserId = 1
+
+    updateGroupChallenges(group, (currentChallenges) =>
+      currentChallenges.map((challenge) => {
+        if (challenge.id !== challengeId) {
+          return challenge
+        }
+
+        const hasCurrentUserProgress = challenge.progress.some((progress) => progress.memberId === currentUserId)
+
+        return {
+          ...challenge,
+          isParticipating: true,
+          progress: hasCurrentUserProgress
+            ? challenge.progress
+            : [
+                {
+                  memberId: currentUserId,
+                  completedCount: 0,
+                  totalCount: challenge.progress[0]?.totalCount ?? 10,
+                  note: '참여 시작',
+                },
+                ...challenge.progress,
+              ],
+        }
+      }),
+    )
+  }
+
+  function recordGroupChallenge(group: Group, challengeId: number) {
+    const currentUserId = 1
+
+    updateGroupChallenges(group, (currentChallenges) =>
+      currentChallenges.map((challenge) => {
+        if (challenge.id !== challengeId) {
+          return challenge
+        }
+
+        const existingProgress = challenge.progress.find((progress) => progress.memberId === currentUserId)
+        const nextCompletedCount = (existingProgress?.completedCount ?? 0) + 1
+        const nextProgress: GroupChallengeProgress = {
+          memberId: currentUserId,
+          completedCount: nextCompletedCount,
+          totalCount: Math.max(existingProgress?.totalCount ?? challenge.progress[0]?.totalCount ?? 10, nextCompletedCount),
+          note: '기록 완료',
+        }
+
+        return {
+          ...challenge,
+          isParticipating: true,
+          progress: [
+            nextProgress,
+            ...challenge.progress.filter((progress) => progress.memberId !== currentUserId),
+          ],
+        }
+      }),
+    )
   }
 
   function createRecord(payload: { habitId: number; date: string }) {
@@ -1382,16 +2137,25 @@ function App() {
       {screen === 'groups' ? (
         <Groups
           groups={groups}
-          habits={habits}
           onOpenGroup={openGroupDetail}
           onCreateGroup={() => setModalMode('group')}
+          getChallengeCount={(group) => getChallengesForGroup(groupChallengeStore, group).length}
+        />
+      ) : screen === 'groupMembers' && activeGroup != null ? (
+        <GroupMembersPage
+          challenges={activeGroupChallenges}
+          onBack={() => moveScreen('groupDetail')}
+          onLeave={leaveActiveGroup}
         />
       ) : screen === 'groupDetail' && activeGroup != null ? (
         <GroupDetail
           group={activeGroup}
-          isJoined={isActiveGroupJoined}
+          challenges={activeGroupChallenges}
           onBack={() => moveScreen('groups')}
-          onJoin={() => joinGroup(activeGroup)}
+          onOpenMembers={openGroupMembers}
+          onCreateChallenge={(challenge) => createGroupChallenge(activeGroup, challenge)}
+          onJoinChallenge={(challengeId) => joinGroupChallenge(activeGroup, challengeId)}
+          onRecordChallenge={(challengeId) => recordGroupChallenge(activeGroup, challengeId)}
         />
       ) : screen === 'habitDetail' && detailHabit != null ? (
         <HabitDetail
@@ -1432,6 +2196,13 @@ function App() {
           }}
           onClose={closePrivateGroupGate}
           onSubmit={confirmPrivateGroupKey}
+        />
+      )}
+      {pendingJoinGroup != null && (
+        <GroupJoinGate
+          group={pendingJoinGroup}
+          onClose={closeGroupJoinGate}
+          onSubmit={confirmGroupJoin}
         />
       )}
     </div>
