@@ -56,6 +56,11 @@ button:focus {
   outline: none;
 }
 
+button:focus:not(:focus-visible) {
+  outline: none !important;
+  box-shadow: none;
+}
+
 input:focus-visible,
 select:focus-visible {
   outline: 2px solid var(--chally-sub);
@@ -63,8 +68,7 @@ select:focus-visible {
 }
 
 button:focus-visible {
-  outline: 2px solid rgba(143, 191, 224, 0.9);
-  outline-offset: 2px;
+  outline: none;
 }
 
 .ui-icon {
@@ -218,8 +222,8 @@ button:focus-visible {
 
 .top-tabs button:focus,
 .top-tabs button:focus-visible {
-  outline: 2px solid rgba(143, 191, 224, 0.9);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: none;
 }
 
 .top-tabs button.active {
@@ -361,9 +365,11 @@ button:focus-visible {
 }
 
 .month-mini-day:focus,
-.calendar-day:focus {
-  outline: 2px solid rgba(143, 191, 224, 0.9);
-  outline-offset: 2px;
+.calendar-day:focus,
+.month-mini-day:focus-visible,
+.calendar-day:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .month-mini-day.marked {
@@ -579,42 +585,47 @@ button:focus-visible {
   box-shadow: 0 8px 20px rgba(25, 31, 40, 0.045);
 }
 
-.joined-group-card.recommended-summary > .visibility-icon-wrap {
-  position: absolute;
-  top: 8px;
-  right: 9px;
-  z-index: 1;
-  width: 26px;
-  height: 26px;
+.joined-group-card.recommended-summary {
+  min-height: 126px;
 }
 
 .visibility-icon-wrap {
-  display: grid;
+  width: 15px;
+  height: 15px;
+  display: inline-grid;
   place-items: center;
+  justify-self: center;
   color: #6b7684;
 }
 
 .visibility-icon {
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
 }
 
 .joined-group-card-head {
-  min-height: 84px;
-  padding: 13px 10px 11px;
+  min-height: 70px;
+  padding: 10px 12px 9px;
   display: grid;
+  grid-template-rows: 15px auto;
   align-content: center;
-  justify-items: center;
-  gap: 7px;
+  justify-items: stretch;
+  gap: 10px;
   background: rgba(203, 235, 255, 0.28);
 }
 
 .joined-group-card-head strong {
+  align-self: center;
+  justify-self: center;
+  min-width: 0;
   max-width: 100%;
+  overflow: hidden;
   color: var(--chally-ink);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   word-break: keep-all;
 }
 
@@ -630,8 +641,8 @@ button:focus-visible {
 }
 
 .joined-group-stats {
-  min-height: 58px;
-  padding: 9px 8px 10px;
+  min-height: 54px;
+  padding: 8px 8px 9px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 2px;
@@ -764,12 +775,12 @@ button:focus-visible {
 
 .private-gate-card {
   width: min(100%, 344px);
-  padding: 18px;
+  padding: 22px 18px 18px;
   display: grid;
-  gap: 16px;
+  gap: 18px;
   border-radius: 20px;
   background: #ffffff;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.2);
 }
 
 .private-gate-card h2 {
@@ -783,10 +794,14 @@ button:focus-visible {
 .modal-status-line {
   display: block;
   margin-top: 6px;
+  max-width: 100%;
+  overflow: hidden;
   color: #8b95a1;
   font-size: 12px;
   font-weight: 500;
   line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .private-gate-card p {
@@ -814,6 +829,162 @@ button:focus-visible {
   background: #ffffff;
   color: var(--chally-ink);
   outline: none;
+}
+
+.join-gate-form {
+  display: grid;
+  gap: 17px;
+}
+
+.join-gate-head {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+}
+
+.join-gate-head h2 {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.32;
+  text-overflow: ellipsis;
+}
+
+.join-gate-head .modal-status-line {
+  margin-top: 0;
+}
+
+.join-field-stack {
+  display: grid;
+  gap: 9px;
+}
+
+.join-profile-picker {
+  width: 78px;
+  height: 78px;
+  display: block;
+  justify-self: center;
+}
+
+.join-profile-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  opacity: 0;
+}
+
+.join-avatar-button {
+  width: 78px;
+  height: 78px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: visible;
+  border: 0;
+  border-radius: 50%;
+  background: var(--chally-key);
+  color: #6b7684;
+  box-shadow: none;
+}
+
+.join-avatar-button img,
+.member-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.default-avatar {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--chally-key);
+}
+
+.default-avatar-head {
+  width: 30%;
+  aspect-ratio: 1;
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  transform: translateX(-50%);
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.default-avatar-body {
+  width: 74%;
+  height: 53%;
+  position: absolute;
+  left: 50%;
+  bottom: -4%;
+  transform: translateX(-50%);
+  border: 0;
+  border-radius: 999px 999px 0 0;
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.join-camera-badge {
+  width: 26px;
+  height: 26px;
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #ffffff;
+  color: var(--chally-ink);
+  box-shadow: 0 3px 8px rgba(25, 31, 40, 0.12);
+}
+
+.join-camera-badge .ui-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.join-profile-picker:focus-within .join-avatar-button {
+  box-shadow: 0 0 0 3px rgba(203, 235, 255, 0.9);
+}
+
+.join-nickname-field,
+.join-private-key-field {
+  min-width: 0;
+}
+
+.join-gate-card h2 {
+  white-space: nowrap;
+}
+
+.join-gate-card .modal-actions {
+  padding-top: 1px;
+}
+
+.join-gate-card .submit-button {
+  font-size: 15px;
+}
+
+.join-gate-card .submit-button:disabled {
+  opacity: 1;
+}
+
+.join-gate-card .cancel-button {
+  border: 0;
+  background: #f7f8fa;
+}
+
+.member-avatar {
+  overflow: hidden;
 }
 
 .private-gate-error {
@@ -937,7 +1108,7 @@ button:focus-visible {
   z-index: 12;
   display: grid;
   place-items: center;
-  border: 1.5px solid var(--icon-outline);
+  border: 0;
   border-radius: 50%;
   background: var(--chally-key);
   color: #ffffff;
@@ -949,8 +1120,7 @@ button:focus-visible {
 }
 
 .challenge-fab:focus-visible {
-  outline: 2px solid rgba(143, 191, 224, 0.9);
-  outline-offset: 3px;
+  outline: none;
 }
 
 .track-heading {
@@ -975,22 +1145,18 @@ button:focus-visible {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 0;
+  gap: 6px;
   flex-wrap: nowrap;
 }
 
 .challenge-page-dots button {
-  flex: 0 0 44px;
-  width: 44px;
+  flex: 0 0 20px;
+  width: 20px;
   height: 44px;
   padding: 0;
   position: relative;
   border: 0;
   background: transparent;
-}
-
-.challenge-page-dots button + button {
-  margin-left: -30px;
 }
 
 .challenge-page-dots button::after {
@@ -999,8 +1165,8 @@ button:focus-visible {
   height: 7px;
   position: absolute;
   top: 50%;
-  right: 0;
-  transform: translateY(-50%);
+  left: 50%;
+  transform: translate(-50%, -50%);
   border: 1px solid var(--chally-key);
   border-radius: 50%;
   background: #ffffff;
@@ -1384,9 +1550,9 @@ button:focus-visible {
   height: 38px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--icon-outline);
+  border: 0;
   border-radius: 50%;
-  background: var(--chally-key);
+  background: #eef1f4;
   color: #ffffff;
 }
 
@@ -1547,20 +1713,16 @@ button:focus-visible {
 .habit-page-dots {
   display: flex;
   justify-content: center;
-  gap: 0;
+  gap: 6px;
 }
 
 .habit-page-dots button {
-  width: 44px;
+  width: 20px;
   height: 44px;
   padding: 0;
   position: relative;
   border: 0;
   background: transparent;
-}
-
-.habit-page-dots button + button {
-  margin-left: -30px;
 }
 
 .habit-page-dots button::after {
@@ -1569,8 +1731,8 @@ button:focus-visible {
   height: 7px;
   position: absolute;
   top: 50%;
-  right: 0;
-  transform: translateY(-50%);
+  left: 50%;
+  transform: translate(-50%, -50%);
   border: 1px solid var(--chally-key);
   border-radius: 50%;
   background: #ffffff;
@@ -1689,10 +1851,8 @@ button:focus-visible {
 }
 
 .challenge-action-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  gap: 4px;
 }
 
 .challenge-action-head h2 {
@@ -1701,15 +1861,6 @@ button:focus-visible {
   font-size: 17px;
   font-weight: 700;
   line-height: 1.35;
-}
-
-.challenge-action-head button {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #8b95a1;
-  font-size: 13px;
-  font-weight: 700;
 }
 
 .challenge-action-options,
@@ -1733,6 +1884,11 @@ button:focus-visible {
 .challenge-action-options strong {
   font-size: 14px;
   font-weight: 700;
+}
+
+.challenge-sheet-cancel {
+  width: 100%;
+  margin-top: 2px;
 }
 
 .challenge-action-form label {
@@ -1760,31 +1916,7 @@ button:focus-visible {
 
 .challenge-action-form input:focus {
   border-color: rgba(143, 191, 224, 0.75);
-  box-shadow: 0 0 0 3px rgba(203, 235, 255, 0.42);
-}
-
-.record-challenge-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.record-challenge-list button {
-  min-height: 42px;
-  padding: 0 10px;
-  border: 1px solid var(--chally-border);
-  border-radius: 13px;
-  background: #ffffff;
-  color: var(--chally-ink);
-  font-size: 12px;
-  font-weight: 700;
-  text-align: center;
-}
-
-.record-challenge-list button.active {
-  border-color: rgba(143, 191, 224, 0.68);
-  background: #f7fbff;
-  box-shadow: inset 0 0 0 1px rgba(203, 235, 255, 0.72);
+  box-shadow: none;
 }
 
 .challenge-action-primary {
@@ -1929,7 +2061,7 @@ button:focus-visible {
 .select-trigger:active {
   outline: none !important;
   border-color: var(--chally-sub);
-  box-shadow: 0 0 0 3px rgba(203, 235, 255, 0.5);
+  box-shadow: none;
 }
 
 .select-menu {

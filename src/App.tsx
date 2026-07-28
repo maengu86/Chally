@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { ArrowLeft, ChevronLeft, ChevronRight, Lock, LockOpen, Plus, Search, UserRound, UsersRound } from 'lucide-react'
+import { ArrowLeft, Camera, ChevronLeft, ChevronRight, Lock, LockOpen, Plus, Search, UsersRound } from 'lucide-react'
 
 type Screen = 'home' | 'groups' | 'habitDetail' | 'groupDetail' | 'groupMembers'
 type ModalMode = 'record' | 'habit' | 'group'
@@ -34,6 +34,14 @@ type GroupMember = {
   name: string
   status: string
   joinedAt: string
+  avatarDataUrl?: string
+}
+
+type UserProfile = {
+  id: number
+  nickname: string
+  createdAt: string
+  avatarDataUrl?: string
 }
 
 type GroupChallengeProgress = {
@@ -62,6 +70,7 @@ const yesterday = new Date(appToday)
 yesterday.setDate(appToday.getDate() - 1)
 const yesterdayIso = toISODate(yesterday.getFullYear(), yesterday.getMonth() + 1, yesterday.getDate())
 const mockHabitCreatedAt = toISODate(calendarYear, currentCalendarMonth, 1)
+const currentUserId = 1
 
 const recommendedGroups: Group[] = [
   { id: 1001, title: '여름 물마시기 챌린지', isPrivate: false, uploadedAt: minutesAgo(18) },
@@ -261,6 +270,7 @@ const groupChallenges: GroupChallenge[] = [
 ]
 
 type StoredAppState = {
+  userProfile?: UserProfile
   habits?: Array<Omit<Habit, 'createdAt'> & { createdAt?: string }>
   records?: RecordItem[]
   groups?: Array<Omit<Group, 'uploadedAt'> & { uploadedAt: string }>
@@ -327,6 +337,40 @@ function normalizeStoredGroupChallengesByGroup(groupChallengesByGroup: StoredApp
 
 function getChallengesForGroup(groupChallengeStore: GroupChallengeStore, group: Group) {
   return groupChallengeStore[getGroupKey(group)] ?? cloneGroupChallenges()
+}
+
+function normalizeStoredUserProfile(userProfile: StoredAppState['userProfile']) {
+  if (
+    userProfile == null ||
+    typeof userProfile.nickname !== 'string' ||
+    userProfile.nickname.trim().length === 0
+  ) {
+    return null
+  }
+
+  return {
+    id: currentUserId,
+    nickname: userProfile.nickname.trim(),
+    createdAt: normalizeRecordDate(userProfile.createdAt),
+    avatarDataUrl: typeof userProfile.avatarDataUrl === 'string' ? userProfile.avatarDataUrl : undefined,
+  }
+}
+
+function getGroupMembers(userProfile: UserProfile | null) {
+  if (userProfile == null) {
+    return groupMembers
+  }
+
+  return groupMembers.map((member) =>
+    member.id === currentUserId
+      ? {
+          ...member,
+          name: userProfile.nickname,
+          status: '내 기록',
+          avatarDataUrl: userProfile.avatarDataUrl,
+        }
+      : member,
+  )
 }
 
 function useEscapeKey(onEscape: () => void, enabled = true) {
@@ -990,10 +1034,9 @@ function Groups({
         <div className="joined-group-grid recommend-section">
           {filteredRecommendedGroups.map((group) => (
             <button type="button" className="joined-group-card recommended-summary" onClick={() => onOpenGroup(group)} key={group.id}>
-              <VisibilityIcon isPrivate={group.isPrivate} />
               <div className="joined-group-card-head">
+                <VisibilityIcon isPrivate={group.isPrivate} />
                 <strong>{group.title}</strong>
-                <span>{group.isPrivate ? '키 확인 후 참여' : '바로 참여 가능'}</span>
               </div>
               <div className="joined-group-stats" aria-label="추천 모임 요약">
                 <span>
@@ -1064,9 +1107,19 @@ function VisibilityIcon({ isPrivate }: { isPrivate: boolean }) {
   )
 }
 
+function DefaultAvatar({ className = '' }: { className?: string }) {
+  return (
+    <span className={className === '' ? 'default-avatar' : `default-avatar ${className}`} aria-hidden="true">
+      <span className="default-avatar-head" />
+      <span className="default-avatar-body" />
+    </span>
+  )
+}
+
 function GroupDetail({
   group,
   challenges,
+  members,
   onBack,
   onOpenMembers,
   onCreateChallenge,
@@ -1075,6 +1128,7 @@ function GroupDetail({
 }: {
   group: Group
   challenges: GroupChallenge[]
+  members: GroupMember[]
   onBack: () => void
   onOpenMembers: () => void
   onCreateChallenge: (challenge: GroupChallenge) => void
@@ -1082,14 +1136,15 @@ function GroupDetail({
   onRecordChallenge: (challengeId: number) => void
 }) {
   const initialRankableChallenge = challenges.find((challenge) => challenge.isParticipating) ?? challenges[0]
-  const [selectedChallengeId, setSelectedChallengeId] = useState(initialRankableChallenge.id)
+  const [selectedChallengeId, setSelectedChallengeId] = useState(initialRankableChallenge?.id ?? 0)
   const [availableChallengePage, setAvailableChallengePage] = useState(0)
   const [joinedChallengePage, setJoinedChallengePage] = useState(0)
   const [challengeSheetMode, setChallengeSheetMode] = useState<'menu' | 'create' | 'record' | null>(null)
   const [pendingJoinChallenge, setPendingJoinChallenge] = useState<GroupChallenge | null>(null)
   const [newChallengeTitle, setNewChallengeTitle] = useState('')
   const [newChallengeSummary, setNewChallengeSummary] = useState('')
-  const [recordChallengeId, setRecordChallengeId] = useState(initialRankableChallenge.id)
+  const [recordChallengeId, setRecordChallengeId] = useState(initialRankableChallenge?.id ?? 0)
+  const [isRecordChallengeMenuOpen, setIsRecordChallengeMenuOpen] = useState(false)
   const allGroupChallenges = challenges
   const availableChallenges = allGroupChallenges.filter((challenge) => !challenge.isParticipating)
   const participatingChallenges = allGroupChallenges.filter((challenge) => challenge.isParticipating)
@@ -1113,13 +1168,16 @@ function GroupDetail({
   const joinedPageCount = Math.max(1, joinedChallengePages.length)
   const activeJoinedPage = Math.min(joinedChallengePage, joinedPageCount - 1)
   const selectedChallenge = rankableChallenges.find((challenge) => challenge.id === selectedChallengeId) ?? rankableChallenges[0]
-  const progressByMember = new Map(selectedChallenge.progress.map((progress) => [progress.memberId, progress]))
-  const membersWithProgress = groupMembers.map((member) => ({
+  const selectedRecordChallenge =
+    participatingChallenges.find((challenge) => challenge.id === recordChallengeId) ?? participatingChallenges[0]
+  const selectedChallengeProgress = selectedChallenge?.progress ?? []
+  const progressByMember = new Map(selectedChallengeProgress.map((progress) => [progress.memberId, progress]))
+  const membersWithProgress = members.map((member) => ({
     ...member,
     progress: progressByMember.get(member.id) ?? {
       memberId: member.id,
       completedCount: 0,
-      totalCount: selectedChallenge.progress[0]?.totalCount ?? 0,
+      totalCount: selectedChallengeProgress[0]?.totalCount ?? 0,
       note: member.status,
     },
   }))
@@ -1155,7 +1213,8 @@ function GroupDetail({
   }
 
   function openRecordSheet() {
-    setRecordChallengeId(selectedChallenge.id)
+    setRecordChallengeId(selectedChallenge?.id ?? participatingChallenges[0]?.id ?? 0)
+    setIsRecordChallengeMenuOpen(false)
     setChallengeSheetMode('record')
   }
 
@@ -1163,6 +1222,7 @@ function GroupDetail({
     setChallengeSheetMode(null)
     setNewChallengeTitle('')
     setNewChallengeSummary('')
+    setIsRecordChallengeMenuOpen(false)
   }
 
   function createGroupChallenge(event: FormEvent<HTMLFormElement>) {
@@ -1239,7 +1299,7 @@ function GroupDetail({
                 type="button"
                 className="member-icon-button"
                 onClick={onOpenMembers}
-                aria-label={`멤버 ${groupMembers.length}명 보기`}
+                aria-label={`멤버 ${members.length}명 보기`}
               >
                 <UsersRound className="ui-icon ui-icon--member" strokeWidth={2} aria-hidden="true" />
               </button>
@@ -1312,7 +1372,7 @@ function GroupDetail({
                     {page.map((challenge) => (
                       <button
                         type="button"
-                        className={selectedChallenge.id === challenge.id ? 'active' : ''}
+                        className={selectedChallenge?.id === challenge.id ? 'active' : ''}
                         onClick={() => setSelectedChallengeId(challenge.id)}
                         key={challenge.id}
                       >
@@ -1360,9 +1420,6 @@ function GroupDetail({
               <>
                 <div className="challenge-action-head">
                   <h2>챌린지 작업</h2>
-                  <button type="button" onClick={closeChallengeSheet} aria-label="닫기">
-                    닫기
-                  </button>
                 </div>
                 <div className="challenge-action-options">
                   <button type="button" onClick={() => setChallengeSheetMode('create')}>
@@ -1372,6 +1429,9 @@ function GroupDetail({
                     <strong>기록 남기기</strong>
                   </button>
                 </div>
+                <button type="button" className="cancel-button challenge-sheet-cancel" onClick={closeChallengeSheet}>
+                  취소
+                </button>
               </>
             )}
 
@@ -1379,9 +1439,6 @@ function GroupDetail({
               <form className="challenge-action-form" onSubmit={createGroupChallenge}>
                 <div className="challenge-action-head">
                   <h2>챌린지 만들기</h2>
-                  <button type="button" onClick={closeChallengeSheet} aria-label="닫기">
-                    닫기
-                  </button>
                 </div>
                 <label>
                   <span>이름</span>
@@ -1401,9 +1458,14 @@ function GroupDetail({
                     placeholder="예: 20분 걷기 인증"
                   />
                 </label>
-                <button type="submit" className="challenge-action-primary">
-                  만들기
-                </button>
+                <div className="modal-actions">
+                  <button type="button" className="cancel-button" onClick={closeChallengeSheet}>
+                    취소
+                  </button>
+                  <button type="submit" className="submit-button">
+                    만들기
+                  </button>
+                </div>
               </form>
             )}
 
@@ -1411,25 +1473,48 @@ function GroupDetail({
               <form className="challenge-action-form" onSubmit={recordSelectedChallenge}>
                 <div className="challenge-action-head">
                   <h2>기록 남기기</h2>
-                  <button type="button" onClick={closeChallengeSheet} aria-label="닫기">
-                    닫기
+                </div>
+                <div className="field-block">
+                  <span className="field-label">챌린지</span>
+                  <button
+                    type="button"
+                    className="select-trigger"
+                    onClick={() => setIsRecordChallengeMenuOpen((current) => !current)}
+                    disabled={participatingChallenges.length === 0}
+                  >
+                    <span>{selectedRecordChallenge?.title ?? '기록할 챌린지가 없어요'}</span>
+                    <span className="select-caret" aria-hidden="true" />
+                  </button>
+                  {isRecordChallengeMenuOpen && (
+                    <div className="select-menu">
+                      {participatingChallenges.map((challenge) => (
+                        <button
+                          type="button"
+                          className={recordChallengeId === challenge.id ? 'selected' : ''}
+                          onClick={() => {
+                            setRecordChallengeId(challenge.id)
+                            setIsRecordChallengeMenuOpen(false)
+                          }}
+                          key={challenge.id}
+                        >
+                          {challenge.title}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    className="cancel-button"
+                    onClick={closeChallengeSheet}
+                  >
+                    취소
+                  </button>
+                  <button type="submit" className="submit-button" disabled={participatingChallenges.length === 0}>
+                    기록하기
                   </button>
                 </div>
-                <div className="record-challenge-list" aria-label="기록할 챌린지 선택">
-                  {participatingChallenges.map((challenge) => (
-                    <button
-                      type="button"
-                      className={recordChallengeId === challenge.id ? 'active' : ''}
-                      onClick={() => setRecordChallengeId(challenge.id)}
-                      key={challenge.id}
-                    >
-                      {challenge.title}
-                    </button>
-                  ))}
-                </div>
-                <button type="submit" className="challenge-action-primary">
-                  기록하기
-                </button>
               </form>
             )}
           </section>
@@ -1466,21 +1551,23 @@ function GroupDetail({
 
 function GroupMembersPage({
   challenges,
+  members,
   onBack,
   onLeave,
 }: {
   challenges: GroupChallenge[]
+  members: GroupMember[]
   onBack: () => void
   onLeave: () => void
 }) {
   const averageCompletedCount = Math.round(
-    groupMembers.reduce((sum, member) => {
+    members.reduce((sum, member) => {
       const memberCompletedCount = challenges.reduce((total, challenge) => {
         const progress = challenge.progress.find((item) => item.memberId === member.id)
         return total + (progress?.completedCount ?? 0)
       }, 0)
       return sum + memberCompletedCount
-    }, 0) / Math.max(1, groupMembers.length),
+    }, 0) / Math.max(1, members.length),
   )
 
   return (
@@ -1497,7 +1584,7 @@ function GroupMembersPage({
       <section className="member-page-summary" aria-label="멤버 요약">
         <div>
           <span>멤버</span>
-          <strong>{groupMembers.length}명</strong>
+          <strong>{members.length}명</strong>
         </div>
         <div>
           <span>챌린지</span>
@@ -1510,10 +1597,14 @@ function GroupMembersPage({
       </section>
 
       <section className="member-page-list" aria-label="멤버 목록">
-        {groupMembers.map((member) => (
+        {members.map((member) => (
           <article className="member-detail-card" key={member.id}>
             <span className="member-avatar" aria-hidden="true">
-              <UserRound className="ui-icon member-avatar-icon" strokeWidth={2.1} />
+              {member.avatarDataUrl != null ? (
+                <img src={member.avatarDataUrl} alt="" />
+              ) : (
+                <DefaultAvatar />
+              )}
             </span>
             <div>
               <strong>{member.name}</strong>
@@ -1759,9 +1850,9 @@ function AppModal({
               </label>
               {isPrivate && (
                 <label>
-                  비공개 키
+                  참여 비밀번호
                   <input
-                    placeholder="비공개 키를 입력하세요"
+                    placeholder="참여 비밀번호를 입력하세요"
                     value={privateKey}
                     onChange={(event) => setPrivateKey(event.target.value)}
                   />
@@ -1783,86 +1874,125 @@ function AppModal({
   )
 }
 
-function PrivateGroupGate({
-  group,
-  value,
-  error,
-  onChange,
-  onClose,
-  onSubmit,
-}: {
-  group: Group
-  value: string
-  error: string
-  onChange: (value: string) => void
-  onClose: () => void
-  onSubmit: () => void
-}) {
-  useEscapeKey(onClose)
-
-  return (
-    <div className="modal-backdrop" role="presentation" onClick={onClose}>
-      <section className="private-gate-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-        <div>
-          <h2>{group.title}</h2>
-          <span className="modal-status-line">비공개 모임 · 멤버 {getGroupMemberCount(group)}명</span>
-          <p>비공개 모임은 키를 확인한 뒤 상세를 볼 수 있어요.</p>
-        </div>
-        <label>
-          비공개 키
-          <input
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                onSubmit()
-              }
-            }}
-            placeholder="비공개 키를 입력하세요"
-            autoFocus
-          />
-        </label>
-        {error !== '' && <p className="private-gate-error">{error}</p>}
-        <div className="modal-actions">
-          <button type="button" className="cancel-button" onClick={onClose}>
-            취소
-          </button>
-          <button type="button" className="submit-button" onClick={onSubmit} disabled={value.trim() === ''}>
-            확인
-          </button>
-        </div>
-      </section>
-    </div>
-  )
-}
-
 function GroupJoinGate({
   group,
+  initialNickname,
+  initialAvatarDataUrl,
   onClose,
   onSubmit,
 }: {
   group: Group
+  initialNickname: string
+  initialAvatarDataUrl?: string
   onClose: () => void
-  onSubmit: () => void
+  onSubmit: (nickname: string, avatarDataUrl?: string) => void
 }) {
+  const [nickname, setNickname] = useState(initialNickname)
+  const [avatarDataUrl, setAvatarDataUrl] = useState(initialAvatarDataUrl)
+  const [privateKey, setPrivateKey] = useState('')
+  const [privateKeyError, setPrivateKeyError] = useState('')
+  const trimmedNickname = nickname.trim()
+  const trimmedPrivateKey = privateKey.trim()
+  const canSubmit = trimmedNickname.length >= 2 && (!group.isPrivate || trimmedPrivateKey.length > 0)
+
   useEscapeKey(onClose)
+
+  function handleAvatarChange(file: File | undefined) {
+    if (file == null || !file.type.startsWith('image/')) {
+      return
+    }
+
+    const reader = new FileReader()
+    reader.addEventListener('load', () => {
+      if (typeof reader.result === 'string') {
+        setAvatarDataUrl(reader.result)
+      }
+    })
+    reader.readAsDataURL(file)
+  }
+
+  function submitJoin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!canSubmit) {
+      return
+    }
+
+    if (group.isPrivate && group.privateKey !== trimmedPrivateKey) {
+      setPrivateKeyError('참여 비밀번호가 맞지 않아요.')
+      return
+    }
+
+    onSubmit(trimmedNickname, avatarDataUrl)
+  }
 
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
-      <section className="private-gate-card join-gate-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-        <div>
-          <h2>{group.title}</h2>
-          <span className="modal-status-line">공개 모임 · 멤버 {getGroupMemberCount(group)}명</span>
-          <p>이 모임에 참여하시겠습니까?</p>
-        </div>
-        <div className="modal-actions">
-          <button type="button" className="cancel-button" onClick={onClose}>
-            취소
-          </button>
-          <button type="button" className="submit-button" onClick={onSubmit}>
-            참여하기
-          </button>
-        </div>
+      <section
+        className="private-gate-card join-gate-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="group-join-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <form className="join-gate-form" onSubmit={submitJoin}>
+          <div className="join-gate-head">
+            <h2 id="group-join-title">{group.title}</h2>
+          </div>
+          <label className="join-profile-picker">
+            <input
+              type="file"
+              accept="image/*"
+              aria-label="프로필 사진 변경"
+              onChange={(event) => handleAvatarChange(event.target.files?.[0])}
+            />
+            <span className="join-avatar-button">
+              {avatarDataUrl != null ? (
+                <img src={avatarDataUrl} alt="" />
+              ) : (
+                <DefaultAvatar />
+              )}
+              <span className="join-camera-badge" aria-hidden="true">
+                <Camera className="ui-icon" strokeWidth={2.2} />
+              </span>
+            </span>
+          </label>
+          <div className="join-field-stack">
+            <label className="join-nickname-field">
+              <span className="sr-only">닉네임</span>
+              <input
+                value={nickname}
+                onChange={(event) => setNickname(event.target.value)}
+                maxLength={12}
+                placeholder="모임에서 사용할 닉네임"
+                autoFocus
+              />
+            </label>
+            {group.isPrivate && (
+              <>
+                <label className="join-private-key-field">
+                  <span className="sr-only">참여 비밀번호</span>
+                  <input
+                    value={privateKey}
+                    onChange={(event) => {
+                      setPrivateKey(event.target.value)
+                      setPrivateKeyError('')
+                    }}
+                    placeholder="참여 비밀번호를 입력하세요"
+                  />
+                </label>
+                {privateKeyError !== '' && <p className="private-gate-error">{privateKeyError}</p>}
+              </>
+            )}
+          </div>
+          <div className="modal-actions">
+            <button type="button" className="cancel-button" onClick={onClose}>
+              취소
+            </button>
+            <button type="submit" className="submit-button" disabled={!canSubmit}>
+              참가
+            </button>
+          </div>
+        </form>
       </section>
     </div>
   )
@@ -1870,15 +2000,15 @@ function GroupJoinGate({
 
 function App() {
   const storedState = useMemo(readStoredAppState, [])
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(() =>
+    normalizeStoredUserProfile(storedState.userProfile),
+  )
   const [screen, setScreen] = useState<Screen>('home')
   const [modalMode, setModalMode] = useState<ModalMode | null>(null)
   const [selectedHabitId, setSelectedHabitId] = useState<number | undefined>()
   const [detailHabitId, setDetailHabitId] = useState<number | null>(null)
   const [detailGroup, setDetailGroup] = useState<Group | null>(null)
   const [pendingJoinGroup, setPendingJoinGroup] = useState<Group | null>(null)
-  const [pendingPrivateGroup, setPendingPrivateGroup] = useState<Group | null>(null)
-  const [privateGroupKey, setPrivateGroupKey] = useState('')
-  const [privateGroupError, setPrivateGroupError] = useState('')
   const [records, setRecords] = useState<RecordItem[]>(() =>
     normalizeStoredRecords(storedState.records),
   )
@@ -1903,9 +2033,11 @@ function App() {
   const activeGroup =
     detailGroup == null ? null : groups.find((group) => group.title === detailGroup.title) ?? detailGroup
   const activeGroupChallenges = activeGroup == null ? [] : getChallengesForGroup(groupChallengeStore, activeGroup)
+  const activeGroupMembers = useMemo(() => getGroupMembers(userProfile), [userProfile])
 
   useEffect(() => {
     const payload: StoredAppState = {
+      userProfile: userProfile ?? undefined,
       habits,
       records,
       groups: groups.map((group) => ({
@@ -1916,7 +2048,16 @@ function App() {
     }
 
     window.localStorage.setItem(appStorageKey, JSON.stringify(payload))
-  }, [groupChallengeStore, groups, habits, records])
+  }, [groupChallengeStore, groups, habits, records, userProfile])
+
+  function saveUserProfile(nickname: string, avatarDataUrl?: string) {
+    setUserProfile({
+      id: currentUserId,
+      nickname,
+      createdAt: userProfile?.createdAt ?? todayIso,
+      avatarDataUrl,
+    })
+  }
 
   function moveScreen(nextScreen: Screen) {
     setScreen(nextScreen)
@@ -1935,13 +2076,6 @@ function App() {
 
   function openGroupDetail(group: Group) {
     const isJoined = groups.some((item) => item.title === group.title)
-    if (group.isPrivate && !isJoined) {
-      setPendingPrivateGroup(group)
-      setPrivateGroupKey('')
-      setPrivateGroupError('')
-      return
-    }
-
     if (!isJoined) {
       setPendingJoinGroup(group)
       return
@@ -1955,37 +2089,16 @@ function App() {
     setScreen('groupMembers')
   }
 
-  function closePrivateGroupGate() {
-    setPendingPrivateGroup(null)
-    setPrivateGroupKey('')
-    setPrivateGroupError('')
-  }
-
   function closeGroupJoinGate() {
     setPendingJoinGroup(null)
   }
 
-  function confirmPrivateGroupKey() {
-    if (pendingPrivateGroup == null) {
-      return
-    }
-
-    if (pendingPrivateGroup.privateKey !== privateGroupKey.trim()) {
-      setPrivateGroupError('비공개 키가 맞지 않아요.')
-      return
-    }
-
-    joinGroup(pendingPrivateGroup)
-    setDetailGroup(pendingPrivateGroup)
-    setScreen('groupDetail')
-    closePrivateGroupGate()
-  }
-
-  function confirmGroupJoin() {
+  function confirmGroupJoin(nickname: string, avatarDataUrl?: string) {
     if (pendingJoinGroup == null) {
       return
     }
 
+    saveUserProfile(nickname, avatarDataUrl)
     joinGroup(pendingJoinGroup)
     setDetailGroup(pendingJoinGroup)
     setScreen('groupDetail')
@@ -2046,8 +2159,6 @@ function App() {
   }
 
   function joinGroupChallenge(group: Group, challengeId: number) {
-    const currentUserId = 1
-
     updateGroupChallenges(group, (currentChallenges) =>
       currentChallenges.map((challenge) => {
         if (challenge.id !== challengeId) {
@@ -2076,8 +2187,6 @@ function App() {
   }
 
   function recordGroupChallenge(group: Group, challengeId: number) {
-    const currentUserId = 1
-
     updateGroupChallenges(group, (currentChallenges) =>
       currentChallenges.map((challenge) => {
         if (challenge.id !== challengeId) {
@@ -2144,6 +2253,7 @@ function App() {
       ) : screen === 'groupMembers' && activeGroup != null ? (
         <GroupMembersPage
           challenges={activeGroupChallenges}
+          members={activeGroupMembers}
           onBack={() => moveScreen('groupDetail')}
           onLeave={leaveActiveGroup}
         />
@@ -2151,6 +2261,7 @@ function App() {
         <GroupDetail
           group={activeGroup}
           challenges={activeGroupChallenges}
+          members={activeGroupMembers}
           onBack={() => moveScreen('groups')}
           onOpenMembers={openGroupMembers}
           onCreateChallenge={(challenge) => createGroupChallenge(activeGroup, challenge)}
@@ -2185,22 +2296,11 @@ function App() {
         />
       )}
 
-      {pendingPrivateGroup != null && (
-        <PrivateGroupGate
-          group={pendingPrivateGroup}
-          value={privateGroupKey}
-          error={privateGroupError}
-          onChange={(value) => {
-            setPrivateGroupKey(value)
-            setPrivateGroupError('')
-          }}
-          onClose={closePrivateGroupGate}
-          onSubmit={confirmPrivateGroupKey}
-        />
-      )}
       {pendingJoinGroup != null && (
         <GroupJoinGate
           group={pendingJoinGroup}
+          initialNickname={userProfile?.nickname ?? ''}
+          initialAvatarDataUrl={userProfile?.avatarDataUrl}
           onClose={closeGroupJoinGate}
           onSubmit={confirmGroupJoin}
         />
@@ -2210,6 +2310,3 @@ function App() {
 }
 
 export default App
-
-
-

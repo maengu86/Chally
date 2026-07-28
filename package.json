@@ -4,9 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --open",
+    "dev": "vite --host 0.0.0.0",
     "dev:toss": "granite dev",
-    "dev:web": "vite --host 0.0.0.0 --open",
+    "dev:web": "vite --host 0.0.0.0",
     "build": "ait build",
     "build:web": "tsc -b && vite build",
     "lint": "oxlint",
