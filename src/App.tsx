@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { ArrowLeft, Camera, ChevronLeft, ChevronRight, Lock, LockOpen, Plus, Search, UsersRound } from 'lucide-react'
+import { ArrowLeft, Camera, ChevronLeft, ChevronRight, Lock, LockOpen, Plus, Search, UserRoundCheck } from 'lucide-react'
 
 type Screen = 'home' | 'groups' | 'habitDetail' | 'groupDetail' | 'groupMembers'
 type ModalMode = 'record' | 'habit' | 'group'
@@ -1139,7 +1139,7 @@ function GroupDetail({
   const [selectedChallengeId, setSelectedChallengeId] = useState(initialRankableChallenge?.id ?? 0)
   const [availableChallengePage, setAvailableChallengePage] = useState(0)
   const [joinedChallengePage, setJoinedChallengePage] = useState(0)
-  const [challengeSheetMode, setChallengeSheetMode] = useState<'menu' | 'create' | 'record' | null>(null)
+  const [challengeSheetMode, setChallengeSheetMode] = useState<'create' | 'record' | null>(null)
   const [pendingJoinChallenge, setPendingJoinChallenge] = useState<GroupChallenge | null>(null)
   const [newChallengeTitle, setNewChallengeTitle] = useState('')
   const [newChallengeSummary, setNewChallengeSummary] = useState('')
@@ -1209,7 +1209,9 @@ function GroupDetail({
   }
 
   function openChallengeMenu() {
-    setChallengeSheetMode('menu')
+    setRecordChallengeId(selectedChallenge?.id ?? participatingChallenges[0]?.id ?? 0)
+    setIsRecordChallengeMenuOpen(false)
+    setChallengeSheetMode('record')
   }
 
   function openRecordSheet() {
@@ -1301,7 +1303,7 @@ function GroupDetail({
                 onClick={onOpenMembers}
                 aria-label={`멤버 ${members.length}명 보기`}
               >
-                <UsersRound className="ui-icon ui-icon--member" strokeWidth={2} aria-hidden="true" />
+                <UserRoundCheck className="ui-icon ui-icon--member" strokeWidth={2} aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -1376,7 +1378,11 @@ function GroupDetail({
                         onClick={() => setSelectedChallengeId(challenge.id)}
                         key={challenge.id}
                       >
-                        <strong>{challenge.title}</strong>
+                        <span className="joined-challenge-status" aria-hidden="true" />
+                        <span className="joined-challenge-copy">
+                          <strong>{challenge.title}</strong>
+                          <small>{challenge.summary}</small>
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -1408,7 +1414,11 @@ function GroupDetail({
       </section>
 
       {challengeSheetMode != null && (
-        <div className="modal-backdrop challenge-action-backdrop" role="presentation" onClick={closeChallengeSheet}>
+        <div
+          className="modal-backdrop challenge-action-backdrop group-record-backdrop"
+          role="presentation"
+          onClick={closeChallengeSheet}
+        >
           <section
             className="challenge-action-sheet"
             role="dialog"
@@ -1416,30 +1426,29 @@ function GroupDetail({
             aria-label="챌린지 작업"
             onClick={(event) => event.stopPropagation()}
           >
-            {challengeSheetMode === 'menu' && (
-              <>
-                <div className="challenge-action-head">
-                  <h2>챌린지 작업</h2>
-                </div>
-                <div className="challenge-action-options">
-                  <button type="button" onClick={() => setChallengeSheetMode('create')}>
-                    <strong>챌린지 만들기</strong>
-                  </button>
-                  <button type="button" onClick={openRecordSheet}>
-                    <strong>기록 남기기</strong>
-                  </button>
-                </div>
-                <button type="button" className="cancel-button challenge-sheet-cancel" onClick={closeChallengeSheet}>
-                  취소
-                </button>
-              </>
-            )}
+            <div className="group-challenge-tabs" role="tablist" aria-label="챌린지 작업">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={challengeSheetMode === 'record'}
+                className={challengeSheetMode === 'record' ? 'active' : ''}
+                onClick={openRecordSheet}
+              >
+                기록하기
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={challengeSheetMode === 'create'}
+                className={challengeSheetMode === 'create' ? 'active' : ''}
+                onClick={() => setChallengeSheetMode('create')}
+              >
+                챌린지 만들기
+              </button>
+            </div>
 
             {challengeSheetMode === 'create' && (
-              <form className="challenge-action-form" onSubmit={createGroupChallenge}>
-                <div className="challenge-action-head">
-                  <h2>챌린지 만들기</h2>
-                </div>
+              <form className="challenge-action-form group-challenge-create-form" onSubmit={createGroupChallenge}>
                 <label>
                   <span>이름</span>
                   <input
@@ -1470,23 +1479,20 @@ function GroupDetail({
             )}
 
             {challengeSheetMode === 'record' && (
-              <form className="challenge-action-form" onSubmit={recordSelectedChallenge}>
-                <div className="challenge-action-head">
-                  <h2>기록 남기기</h2>
-                </div>
-                <div className="field-block">
-                  <span className="field-label">챌린지</span>
+              <form className="group-record-form" onSubmit={recordSelectedChallenge}>
+                <div className="group-record-field">
+                  <span className="group-record-label">챌린지</span>
                   <button
                     type="button"
-                    className="select-trigger"
+                    className="group-record-select"
                     onClick={() => setIsRecordChallengeMenuOpen((current) => !current)}
                     disabled={participatingChallenges.length === 0}
                   >
                     <span>{selectedRecordChallenge?.title ?? '기록할 챌린지가 없어요'}</span>
-                    <span className="select-caret" aria-hidden="true" />
+                    <span className="group-record-caret" aria-hidden="true" />
                   </button>
                   {isRecordChallengeMenuOpen && (
-                    <div className="select-menu">
+                    <div className="group-record-menu">
                       {participatingChallenges.map((challenge) => (
                         <button
                           type="button"
@@ -1503,15 +1509,19 @@ function GroupDetail({
                     </div>
                   )}
                 </div>
-                <div className="modal-actions">
+                <div className="group-record-actions">
                   <button
                     type="button"
-                    className="cancel-button"
+                    className="group-record-cancel"
                     onClick={closeChallengeSheet}
                   >
                     취소
                   </button>
-                  <button type="submit" className="submit-button" disabled={participatingChallenges.length === 0}>
+                  <button
+                    type="submit"
+                    className="group-record-submit"
+                    disabled={participatingChallenges.length === 0}
+                  >
                     기록하기
                   </button>
                 </div>

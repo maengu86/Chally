@@ -95,8 +95,8 @@ button:focus-visible {
 }
 
 .ui-icon--member {
-  width: var(--icon-size-xl);
-  height: var(--icon-size-xl);
+  width: 22px;
+  height: 22px;
 }
 
 .ui-icon--lock {
@@ -910,11 +910,11 @@ button:focus-visible {
 }
 
 .default-avatar-head {
-  width: 30%;
+  width: 32%;
   aspect-ratio: 1;
   position: absolute;
   left: 50%;
-  top: 22%;
+  top: 18%;
   transform: translateX(-50%);
   border: 0;
   border-radius: 50%;
@@ -922,11 +922,11 @@ button:focus-visible {
 }
 
 .default-avatar-body {
-  width: 74%;
-  height: 53%;
+  width: 68%;
+  height: 48%;
   position: absolute;
   left: 50%;
-  bottom: -4%;
+  bottom: 0;
   transform: translateX(-50%);
   border: 0;
   border-radius: 999px 999px 0 0;
@@ -951,10 +951,6 @@ button:focus-visible {
 .join-camera-badge .ui-icon {
   width: 14px;
   height: 14px;
-}
-
-.join-profile-picker:focus-within .join-avatar-button {
-  box-shadow: 0 0 0 3px rgba(203, 235, 255, 0.9);
 }
 
 .join-nickname-field,
@@ -1052,7 +1048,7 @@ button:focus-visible {
 .panel-heading-row span {
   color: #8b95a1;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 400;
   white-space: nowrap;
 }
 
@@ -1234,11 +1230,11 @@ button:focus-visible {
 }
 
 .joined-rank-card {
-  padding: 12px;
+  padding: 14px;
   display: grid;
-  gap: 10px;
+  gap: 12px;
   border: 1px solid #edf0f2;
-  border-radius: 16px;
+  border-radius: 18px;
   background: #ffffff;
   box-shadow: none;
 }
@@ -1252,25 +1248,57 @@ button:focus-visible {
   min-width: 100%;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 7px;
+  gap: 8px;
 }
 
 .joined-challenge-page button {
-  min-height: 50px;
-  padding: 10px 9px;
+  min-height: 66px;
+  padding: 10px;
   display: grid;
-  align-content: center;
-  border: 1px solid var(--chally-border);
-  border-radius: 14px;
-  background: #ffffff;
+  grid-template-columns: 7px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: #f7f8fa;
   color: inherit;
   text-align: left;
 }
 
 .joined-challenge-page button.active {
-  border-color: rgba(143, 191, 224, 0.65);
-  background: #f7fbff;
-  box-shadow: inset 0 0 0 1px rgba(203, 235, 255, 0.72);
+  border-color: rgba(143, 191, 224, 0.42);
+  background: #f4faff;
+  box-shadow: none;
+}
+
+.joined-challenge-status {
+  width: 7px;
+  height: 7px;
+  margin: 0;
+  border: 1px solid #b0b8c1;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
+.joined-challenge-page button.active .joined-challenge-status {
+  border-color: var(--chally-key);
+  background: var(--chally-key);
+}
+
+.joined-challenge-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.joined-challenge-copy small {
+  overflow: hidden;
+  color: #8b95a1;
+  font-size: 9px;
+  font-weight: 400;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .joined-rank-divider {
@@ -1297,7 +1325,7 @@ button:focus-visible {
 .joined-challenge-page strong {
   color: var(--chally-ink);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .rank-summary {
@@ -1334,7 +1362,7 @@ button:focus-visible {
 .challenge-rank-head span {
   color: #8b95a1;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 400;
   white-space: nowrap;
 }
 
@@ -1372,7 +1400,7 @@ button:focus-visible {
   margin: 0;
   color: var(--chally-text);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .member-rank-list {
@@ -1429,7 +1457,7 @@ button:focus-visible {
   display: block;
   color: var(--chally-ink);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .compact-rank-grid .member-rank-row div {
@@ -1456,7 +1484,7 @@ button:focus-visible {
   margin: 0;
   color: var(--chally-text);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .compact-rank-grid .rank-score {
@@ -1878,12 +1906,12 @@ button:focus-visible {
   border-radius: 14px;
   background: #ffffff;
   color: var(--chally-ink);
-  text-align: left;
+  text-align: center;
 }
 
 .challenge-action-options strong {
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .challenge-sheet-cancel {
@@ -1927,6 +1955,171 @@ button:focus-visible {
   color: var(--chally-ink);
   font-size: 14px;
   font-weight: 800;
+}
+
+.group-record-backdrop {
+  place-items: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, 0.56);
+}
+
+.group-record-backdrop .challenge-action-sheet {
+  width: min(100%, 368px);
+  padding: 18px;
+  gap: 0;
+  border: 0;
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+
+.group-challenge-tabs {
+  margin-bottom: 18px;
+  padding: 4px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  border-radius: 18px;
+  background: #f2f4f6;
+}
+
+.group-challenge-tabs button {
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: #6b7684;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.group-challenge-tabs button.active {
+  background: #ffffff;
+  color: var(--chally-ink);
+  box-shadow: 0 1px 3px rgba(25, 31, 40, 0.08), inset 0 0 0 1px #edf0f2;
+}
+
+.group-challenge-create-form {
+  gap: 12px;
+}
+
+.group-challenge-create-form .modal-actions {
+  padding-top: 8px;
+}
+
+.group-record-form {
+  display: grid;
+  gap: 15px;
+}
+
+.group-record-field {
+  position: relative;
+  display: grid;
+  gap: 8px;
+}
+
+.group-record-label {
+  color: #333d4b;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.group-record-select {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #dfe3e8;
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--chally-ink);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.group-record-select > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-record-caret {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  position: relative;
+}
+
+.group-record-caret::before {
+  width: 7px;
+  height: 7px;
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  border-right: 2px solid #8fbfe0;
+  border-bottom: 2px solid #8fbfe0;
+  transform: rotate(45deg);
+}
+
+.group-record-menu {
+  padding: 6px;
+  display: grid;
+  gap: 2px;
+  border: 1px solid #dfe3e8;
+  border-radius: 13px;
+  background: #ffffff;
+  box-shadow: 0 10px 26px rgba(25, 31, 40, 0.08);
+}
+
+.group-record-menu button {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--chally-ink);
+  font-size: 14px;
+  font-weight: 400;
+  text-align: left;
+}
+
+.group-record-menu button.selected {
+  background: var(--chally-key);
+}
+
+.group-record-actions {
+  padding-top: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.group-record-cancel,
+.group-record-submit {
+  min-height: 46px;
+  border-radius: 14px;
+  font-weight: 500;
+}
+
+.group-record-cancel {
+  border: 1px solid #dfe3e8;
+  background: #ffffff;
+  color: var(--chally-ink);
+}
+
+.group-record-submit {
+  border: 0;
+  background: var(--chally-key);
+  color: var(--chally-ink);
+}
+
+.group-record-submit:disabled {
+  color: #8b95a1;
+  background: #edf6ff;
 }
 
 .modal-card {
@@ -2001,7 +2194,7 @@ button:focus-visible {
   gap: 8px;
   color: #333d4b;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .field-block {
@@ -2013,7 +2206,7 @@ button:focus-visible {
 .field-label {
   color: #333d4b;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .select-trigger {
@@ -2028,7 +2221,7 @@ button:focus-visible {
   background: #ffffff;
   color: var(--chally-ink);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 500;
   outline: none !important;
 }
 
@@ -2083,7 +2276,7 @@ button:focus-visible {
   color: var(--chally-ink);
   text-align: left;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 500;
   outline: none !important;
 }
 
@@ -2632,6 +2825,3 @@ button:focus-visible {
   outline: none !important;
   box-shadow: none;
 }
-
-
-
