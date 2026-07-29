@@ -6,6 +6,11 @@
   --chally-vice: #ffd9bd;
   --chally-vice-strong: #d96f2c;
   --chally-vice-soft: #fff5ed;
+  --chally-danger: #ffdedd;
+  --chally-danger-strong: #d94040;
+  --chally-danger-soft: #fff7f7;
+  --chally-key-strong: #4a90c4;
+  --chally-key-soft: #f3faff;
   --chally-soft: #f7f8fa;
   --chally-surface: #ffffff;
   --chally-text: #4e5968;
@@ -488,6 +493,17 @@ button:focus-visible {
 
 .habit-add-row {
   justify-content: flex-end;
+  gap: 2px;
+}
+
+.icon-add-button.active {
+  background: var(--chally-key);
+}
+
+.icon-add-button.active:focus,
+.icon-add-button.active:focus-visible,
+.icon-add-button.active:active {
+  background: var(--chally-key);
 }
 
 .section-header h2 {
@@ -620,19 +636,16 @@ button:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-self: center;
+  border: 1px solid #dfe3e8;
   border-radius: 999px;
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
 }
 
-.visibility-badge.public {
-  background: var(--chally-key);
-  color: var(--chally-ink);
-}
-
+.visibility-badge.public,
 .visibility-badge.private {
-  background: #eef1f4;
+  background: #ffffff;
   color: #6b7684;
 }
 
@@ -1034,7 +1047,7 @@ button:focus-visible {
 .group-detail-hero {
   padding: 8px 0 2px;
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto 1fr auto;
   gap: 14px;
   align-items: center;
 }
@@ -1183,13 +1196,13 @@ button:focus-visible {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 2px;
   flex-wrap: nowrap;
 }
 
 .challenge-page-dots button {
-  flex: 0 0 17px;
-  width: 17px;
+  flex: 0 0 13px;
+  width: 13px;
   height: 26px;
   padding: 0;
   position: relative;
@@ -1808,6 +1821,178 @@ button:focus-visible {
   color: var(--chally-ink);
 }
 
+.danger-submit-button {
+  background: var(--chally-danger);
+  color: var(--chally-danger-strong);
+}
+
+.edit-mode-banner {
+  margin: 0;
+  min-height: 32px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--chally-key);
+  color: var(--chally-ink);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  word-break: keep-all;
+}
+
+.habit-grid-card.editing,
+.habit-overview-card.editing {
+  border-color: var(--chally-key-strong);
+  background: var(--chally-key-soft);
+}
+
+.challenge-edit-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.challenge-edit-group {
+  display: grid;
+  gap: 8px;
+}
+
+.challenge-edit-group h2 {
+  margin: 0;
+  color: var(--chally-ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.challenge-edit-row {
+  min-height: 60px;
+  padding: 11px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--chally-border);
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.challenge-edit-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.challenge-edit-copy strong {
+  color: var(--chally-ink);
+  font-size: 14px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.challenge-edit-copy span {
+  color: #8b95a1;
+  font-size: 11px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.challenge-edit-action {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid var(--chally-border);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #6b7684;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.challenge-edit-action.danger {
+  border-color: var(--chally-danger);
+  background: var(--chally-danger);
+  color: var(--chally-danger-strong);
+}
+
+.icon-edit-button {
+  appearance: none;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--icon-outline);
+  line-height: 1;
+}
+
+.icon-edit-button.active {
+  background: var(--chally-key);
+  color: var(--chally-ink);
+}
+
+.icon-edit-button:focus,
+.icon-edit-button:focus-visible,
+.icon-edit-button:active {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Pencil은 아이콘 박스를 대각선으로 꽉 채워서, 같은 크기의 Plus보다 커 보인다.
+   Plus(24px) 옆에 나란히 둘 때 시각적으로 맞으려면 20px가 적정. */
+.ui-icon--edit {
+  width: 20px;
+  height: 20px;
+}
+
+.icon-edit-button .ui-icon--edit {
+  width: 16px;
+  height: 16px;
+}
+
+.habit-action-card {
+  display: grid;
+  gap: 14px;
+}
+
+.habit-action-list {
+  display: grid;
+  gap: 6px;
+}
+
+.habit-action-item {
+  min-height: 48px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 13px;
+  background: #f7f8fa;
+  color: var(--chally-ink);
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.habit-action-item.danger {
+  background: var(--chally-danger);
+  color: var(--chally-danger-strong);
+}
+
+.habit-action-item.quiet {
+  background: transparent;
+  color: #8b95a1;
+}
+
 .past-day-summary {
   display: grid;
   gap: 8px;
@@ -1936,11 +2121,11 @@ button:focus-visible {
 .habit-page-dots {
   display: flex;
   justify-content: center;
-  gap: 6px;
+  gap: 2px;
 }
 
 .habit-page-dots button {
-  width: 20px;
+  width: 13px;
   height: 44px;
   padding: 0;
   position: relative;
@@ -1972,7 +2157,7 @@ button:focus-visible {
 .habit-detail-hero {
   padding: 8px 0 2px;
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto 1fr auto;
   gap: 14px;
   align-items: start;
 }
@@ -2295,7 +2480,6 @@ button:focus-visible {
 .modal-tabs.challenge-action-tabs {
   gap: 0;
   padding: 0;
-  border-bottom: 1px solid #edf0f2;
   border-radius: 0;
   background: transparent;
 }
@@ -2321,7 +2505,7 @@ button:focus-visible {
   height: 2px;
   position: absolute;
   right: 12px;
-  bottom: -1px;
+  bottom: 0;
   left: 12px;
   border-radius: 999px;
   background: var(--chally-key);
@@ -2486,9 +2670,9 @@ button:focus-visible {
 }
 
 .weekday-picker button.selected {
-  border: 2px solid #9dd2f4;
+  border: 0;
   background: var(--chally-key);
-  color: var(--chally-ink);
+  color: #ffffff;
 }
 
 .habit-target-options {
@@ -3739,6 +3923,11 @@ button:focus-visible {
 .submit-button.vice-submit-button {
   background: var(--chally-vice);
   color: var(--chally-ink);
+}
+
+.submit-button.danger-submit-button {
+  background: var(--chally-danger);
+  color: var(--chally-danger-strong);
 }
 
 

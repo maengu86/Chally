@@ -4,9 +4,7 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
-  CircleMinus,
-  CirclePlus,
-  Minus,
+  Pencil,
   Plus,
   Search,
 } from 'lucide-react'
@@ -92,6 +90,8 @@ type GroupChallenge = {
   title: string
   summary: string
   isParticipating: boolean
+  /** 만든 사람의 memberId. 시드 데이터처럼 값이 없으면 내가 만든 챌린지가 아니다. */
+  createdBy?: number
   lastRecordedDate?: string
   progress: GroupChallengeProgress[]
 }
@@ -800,11 +800,17 @@ function formatKoreanDate(year: number, month: number, day: number) {
 function Home({
   habits,
   records,
+  isEditMode,
+  onToggleEditMode,
+  onEditHabit,
   onOpenHabit,
   onRequestRecord,
 }: {
   habits: Habit[]
   records: RecordItem[]
+  isEditMode: boolean
+  onToggleEditMode: () => void
+  onEditHabit: (habitId: number) => void
   onOpenHabit: () => void
   onRequestRecord: (habitId: number, date: string) => void
 }) {
@@ -851,6 +857,15 @@ function Home({
       <section className="section-block">
         {isSelectedToday ? (
           <div className="section-header habit-add-row">
+            <button
+              type="button"
+              className={isEditMode ? 'text-button icon-add-button active' : 'text-button icon-add-button'}
+              onClick={onToggleEditMode}
+              aria-label="습관 편집"
+              aria-pressed={isEditMode}
+            >
+              <Pencil className="ui-icon ui-icon--edit" strokeWidth={2.3} aria-hidden="true" />
+            </button>
             <button type="button" className="text-button icon-add-button" onClick={onOpenHabit} aria-label="습관 추가">
               <Plus className="ui-icon ui-icon--plus" strokeWidth={2.3} aria-hidden="true" />
             </button>
@@ -878,11 +893,16 @@ function Home({
             <span>{habits.length === 0 ? '눌러서 첫 습관을 만들어보세요' : '습관을 만든 날부터 목록에 표시됩니다'}</span>
           </button>
         ) : (
-          <HabitPagedGrid
-            habits={orderedHabits}
-            recordDate={selectedDateIso}
-            onRequestRecord={onRequestRecord}
-          />
+          <>
+            {isEditMode && <EditModeBanner text="편집 모드 · 습관을 눌러 수정하거나 삭제하세요" />}
+            <HabitPagedGrid
+              habits={orderedHabits}
+              recordDate={selectedDateIso}
+              isEditMode={isEditMode}
+              onEditHabit={onEditHabit}
+              onRequestRecord={onRequestRecord}
+            />
+          </>
         )}
       </section>
 
@@ -967,10 +987,14 @@ function MonthReport({
 function HabitPagedGrid({
   habits,
   recordDate,
+  isEditMode,
+  onEditHabit,
   onRequestRecord,
 }: {
   habits: Array<Habit & { recordCount: number }>
   recordDate: string
+  isEditMode: boolean
+  onEditHabit: (habitId: number) => void
   onRequestRecord: (habitId: number, date: string) => void
 }) {
   const [pageIndex, setPageIndex] = useState(0)
@@ -1023,15 +1047,26 @@ function HabitPagedGrid({
               'habit-grid-card',
               habit.kind === 'negative' ? 'vice' : '',
               habit.completed ? 'done' : '',
+              isEditMode ? 'editing' : '',
             ].filter(Boolean).join(' ')}
             onClick={() => {
-              if (ignoreSwipeClick() || (habit.kind === 'positive' && habit.completed)) {
+              if (ignoreSwipeClick()) {
+                return
+              }
+
+              if (isEditMode) {
+                onEditHabit(habit.id)
+                return
+              }
+
+              if (habit.kind === 'positive' && habit.completed) {
                 return
               }
 
               onRequestRecord(habit.id, recordDate)
             }}
-            disabled={habit.kind === 'positive' && habit.completed}
+            disabled={!isEditMode && habit.kind === 'positive' && habit.completed}
+            aria-label={isEditMode ? `${habit.title} 수정 또는 삭제` : undefined}
             key={habit.id}
           >
             <span className="habit-status-badge">
@@ -1061,11 +1096,17 @@ function HabitPagedGrid({
 function HabitOverview({
   habits,
   records,
+  isEditMode,
+  onToggleEditMode,
+  onEditHabit,
   onBack,
   onOpenHabitDetail,
 }: {
   habits: Habit[]
   records: RecordItem[]
+  isEditMode: boolean
+  onToggleEditMode: () => void
+  onEditHabit: (habitId: number) => void
   onBack: () => void
   onOpenHabitDetail: (habitId: number) => void
 }) {
@@ -1104,6 +1145,15 @@ function HabitOverview({
         <div>
           <h1>습관 현황</h1>
         </div>
+        <button
+          type="button"
+          className={isEditMode ? 'text-button icon-add-button active' : 'text-button icon-add-button'}
+          onClick={onToggleEditMode}
+          aria-label="습관 편집"
+          aria-pressed={isEditMode}
+        >
+          <Pencil className="ui-icon ui-icon--edit" strokeWidth={2.3} aria-hidden="true" />
+        </button>
       </section>
 
       <section className="detail-summary-board overview-summary">
@@ -1127,12 +1177,15 @@ function HabitOverview({
         </div>
       </section>
 
+      {isEditMode && <EditModeBanner text="편집 모드 · 습관을 눌러 수정하거나 삭제하세요" />}
+
       <section className="habit-overview-list" aria-label="습관별 현황">
         {orderedHabits.map((habit) => (
           <button
             type="button"
-            className="habit-overview-card"
-            onClick={() => onOpenHabitDetail(habit.id)}
+            className={isEditMode ? 'habit-overview-card editing' : 'habit-overview-card'}
+            onClick={() => (isEditMode ? onEditHabit(habit.id) : onOpenHabitDetail(habit.id))}
+            aria-label={isEditMode ? `${habit.title} 수정 또는 삭제` : undefined}
             key={habit.id}
           >
             <div className="habit-overview-card-head">
@@ -1415,6 +1468,8 @@ function GroupDetail({
   onCreateChallenge,
   onJoinChallenge,
   onRecordChallenge,
+  onDeleteChallenge,
+  onLeaveChallenge,
 }: {
   group: Group
   challenges: GroupChallenge[]
@@ -1423,6 +1478,8 @@ function GroupDetail({
   onCreateChallenge: (challenge: GroupChallenge) => void
   onJoinChallenge: (challengeId: number) => void
   onRecordChallenge: (challengeId: number) => void
+  onDeleteChallenge: (challengeId: number) => void
+  onLeaveChallenge: (challengeId: number) => void
 }) {
   const initialRankableChallenge = challenges.find((challenge) => challenge.isParticipating) ?? challenges[0]
   const [selectedChallengeId, setSelectedChallengeId] = useState(initialRankableChallenge?.id ?? 0)
@@ -1435,10 +1492,16 @@ function GroupDetail({
   const [recordChallengeId, setRecordChallengeId] = useState(initialRankableChallenge?.id ?? 0)
   const [isRecordChallengeMenuOpen, setIsRecordChallengeMenuOpen] = useState(false)
   const [recordedChallengeIds, setRecordedChallengeIds] = useState<number[]>([])
+  const [isChallengeEditMode, setIsChallengeEditMode] = useState(false)
+  const [pendingDeleteChallengeId, setPendingDeleteChallengeId] = useState<number | null>(null)
+  const [pendingLeaveChallengeId, setPendingLeaveChallengeId] = useState<number | null>(null)
   const allGroupChallenges = challenges
   const availableChallenges = allGroupChallenges
   const participatingChallenges = allGroupChallenges.filter((challenge) => challenge.isParticipating)
-  const rankableChallenges = participatingChallenges.length > 0 ? participatingChallenges : allGroupChallenges
+  const orderedParticipatingChallenges = [...participatingChallenges].sort(
+    (a, b) => Number(isChallengeRecordedToday(a)) - Number(isChallengeRecordedToday(b)),
+  )
+  const rankableChallenges = orderedParticipatingChallenges.length > 0 ? orderedParticipatingChallenges : allGroupChallenges
   const availableChallengePages = availableChallenges.reduce<GroupChallenge[][]>((pages, challenge, index) => {
     if (index % 2 === 0) {
       pages.push([])
@@ -1446,7 +1509,7 @@ function GroupDetail({
     pages[pages.length - 1].push(challenge)
     return pages
   }, [])
-  const joinedChallengePages = participatingChallenges.reduce<GroupChallenge[][]>((pages, challenge, index) => {
+  const joinedChallengePages = orderedParticipatingChallenges.reduce<GroupChallenge[][]>((pages, challenge, index) => {
     if (index % 2 === 0) {
       pages.push([])
     }
@@ -1459,7 +1522,7 @@ function GroupDetail({
   const activeJoinedPage = Math.min(joinedChallengePage, joinedPageCount - 1)
   const selectedChallenge = rankableChallenges.find((challenge) => challenge.id === selectedChallengeId) ?? rankableChallenges[0]
   const recordableParticipatingChallenges = participatingChallenges.filter(
-    (challenge) => challenge.lastRecordedDate !== todayIso && !recordedChallengeIds.includes(challenge.id),
+    (challenge) => !isChallengeRecordedToday(challenge),
   )
   const selectedRecordChallenge =
     recordableParticipatingChallenges.find((challenge) => challenge.id === recordChallengeId) ?? recordableParticipatingChallenges[0]
@@ -1505,9 +1568,12 @@ function GroupDetail({
     openChallengeTab('record')
   }
 
+  function isChallengeRecordedToday(challenge: GroupChallenge) {
+    return challenge.lastRecordedDate === todayIso || recordedChallengeIds.includes(challenge.id)
+  }
+
   function getChallengeStatus(challenge: GroupChallenge) {
-    const currentUserProgress = challenge.progress.find((progress) => progress.memberId === currentUserId)
-    return (currentUserProgress?.completedCount ?? 0) > 0 ? '완료' : '미완료'
+    return isChallengeRecordedToday(challenge) ? '완료' : '미완료'
   }
 
   function openChallengeTab(nextMode: 'create' | 'record') {
@@ -1540,6 +1606,7 @@ function GroupDetail({
       title,
       summary: newChallengeSummary.trim() || '새 기록을 준비해요',
       isParticipating: false,
+      createdBy: currentUserId,
       progress: [],
     }
 
@@ -1559,6 +1626,36 @@ function GroupDetail({
     setRecordedChallengeIds((current) => current.includes(recordChallengeId) ? current : [...current, recordChallengeId])
     setSelectedChallengeId(recordChallengeId)
     closeChallengeSheet()
+  }
+
+  const myCreatedChallenges = allGroupChallenges.filter((challenge) => challenge.createdBy === currentUserId)
+  const joinedOtherChallenges = allGroupChallenges.filter(
+    (challenge) => challenge.isParticipating && challenge.createdBy !== currentUserId,
+  )
+  const pendingDeleteChallenge =
+    pendingDeleteChallengeId == null
+      ? undefined
+      : allGroupChallenges.find((challenge) => challenge.id === pendingDeleteChallengeId)
+  const pendingLeaveChallenge =
+    pendingLeaveChallengeId == null
+      ? undefined
+      : allGroupChallenges.find((challenge) => challenge.id === pendingLeaveChallengeId)
+
+  function confirmDeleteChallenge() {
+    if (pendingDeleteChallengeId != null) {
+      onDeleteChallenge(pendingDeleteChallengeId)
+    }
+
+    setPendingDeleteChallengeId(null)
+  }
+
+  function confirmLeaveChallenge() {
+    if (pendingLeaveChallengeId != null) {
+      onLeaveChallenge(pendingLeaveChallengeId)
+      setRecordedChallengeIds((current) => current.filter((id) => id !== pendingLeaveChallengeId))
+    }
+
+    setPendingLeaveChallengeId(null)
   }
 
   function confirmJoinChallenge() {
@@ -1598,8 +1695,66 @@ function GroupDetail({
             </div>
           </div>
         </div>
+        <button
+          type="button"
+          className={isChallengeEditMode ? 'text-button icon-edit-button active' : 'text-button icon-edit-button'}
+          onClick={() => setIsChallengeEditMode((current) => !current)}
+          aria-label="챌린지 편집"
+          aria-pressed={isChallengeEditMode}
+        >
+          <Pencil className="ui-icon ui-icon--edit" strokeWidth={2.2} aria-hidden="true" />
+        </button>
       </section>
 
+      {isChallengeEditMode ? (
+        <section className="challenge-edit-panel" aria-label="챌린지 편집">
+          <div className="challenge-edit-group">
+            <h2>내가 만든 챌린지</h2>
+            {myCreatedChallenges.length === 0 ? (
+              <p className="quiet-empty compact-empty">직접 만든 챌린지가 없어요</p>
+            ) : (
+              myCreatedChallenges.map((challenge) => (
+                <div className="challenge-edit-row" key={challenge.id}>
+                  <div className="challenge-edit-copy">
+                    <strong>{challenge.title}</strong>
+                    <span>{challenge.summary}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="challenge-edit-action danger"
+                    onClick={() => setPendingDeleteChallengeId(challenge.id)}
+                  >
+                    삭제
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="challenge-edit-group">
+            <h2>참여중인 챌린지</h2>
+            {joinedOtherChallenges.length === 0 ? (
+              <p className="quiet-empty compact-empty">참여중인 챌린지가 없어요</p>
+            ) : (
+              joinedOtherChallenges.map((challenge) => (
+                <div className="challenge-edit-row" key={challenge.id}>
+                  <div className="challenge-edit-copy">
+                    <strong>{challenge.title}</strong>
+                    <span>{challenge.summary}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="challenge-edit-action"
+                    onClick={() => setPendingLeaveChallengeId(challenge.id)}
+                  >
+                    참여 취소
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      ) : (
       <section className="group-status-panel challenge-panel">
         <div className="challenge-track-section ongoing-challenge-track">
           <div className="panel-heading-row track-heading">
@@ -1713,6 +1868,7 @@ function GroupDetail({
           <Plus className="ui-icon ui-icon--fab" strokeWidth={3} aria-hidden="true" />
         </button>
       </section>
+      )}
 
       {challengeSheetMode != null && (
         <div className="modal-backdrop challenge-action-backdrop" role="presentation" onClick={closeChallengeSheet}>
@@ -1757,7 +1913,7 @@ function GroupDetail({
                     value={newChallengeSummary}
                     onChange={(event) => setNewChallengeSummary(event.target.value)}
                     maxLength={24}
-                    placeholder="설명 예: 20분 걷기 인증"
+                    placeholder="설명"
                   />
                 </label>
                 <div className="modal-actions">
@@ -1818,6 +1974,27 @@ function GroupDetail({
             )}
           </section>
         </div>
+      )}
+
+      {pendingDeleteChallenge != null && (
+        <DeleteConfirmModal
+          title={pendingDeleteChallenge.title}
+          description={`이 챌린지를 모임에서 삭제할까요? 참여중인 ${pendingDeleteChallenge.progress.length}명의 기록도 함께 사라집니다.`}
+          confirmLabel="삭제하기"
+          onClose={() => setPendingDeleteChallengeId(null)}
+          onConfirm={confirmDeleteChallenge}
+        />
+      )}
+
+      {pendingLeaveChallenge != null && (
+        <DeleteConfirmModal
+          title={pendingLeaveChallenge.title}
+          description="이 챌린지 참여를 취소할까요? 내가 남긴 기록이 사라지고 다른 멤버의 기록은 그대로 남습니다."
+          confirmLabel="참여 취소"
+          cancelLabel="돌아가기"
+          onClose={() => setPendingLeaveChallengeId(null)}
+          onConfirm={confirmLeaveChallenge}
+        />
       )}
 
       {pendingJoinChallenge != null && (
@@ -1920,6 +2097,98 @@ function GroupMembersPage({
   )
 }
 
+function EditModeBanner({ text }: { text: string }) {
+  return (
+    <p className="edit-mode-banner" role="status">
+      {text}
+    </p>
+  )
+}
+
+function HabitActionSheet({
+  habit,
+  onClose,
+  onEdit,
+  onDelete,
+}: {
+  habit: Habit
+  onClose: () => void
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  useEscapeKey(onClose)
+
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <section
+        className="modal-card habit-action-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="habit-action-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="record-confirm-head">
+          <h2 id="habit-action-title">{habit.title}</h2>
+        </div>
+        <div className="habit-action-list">
+          <button type="button" className="habit-action-item" onClick={onEdit}>
+            수정하기
+          </button>
+          <button type="button" className="habit-action-item danger" onClick={onDelete}>
+            삭제하기
+          </button>
+          <button type="button" className="habit-action-item quiet" onClick={onClose}>
+            취소
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function DeleteConfirmModal({
+  title,
+  description,
+  confirmLabel = '삭제하기',
+  cancelLabel = '취소',
+  onClose,
+  onConfirm,
+}: {
+  title: string
+  description: string
+  confirmLabel?: string
+  cancelLabel?: string
+  onClose: () => void
+  onConfirm: () => void
+}) {
+  useEscapeKey(onClose)
+
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <section
+        className="modal-card record-confirm-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-confirm-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="record-confirm-head">
+          <h2 id="delete-confirm-title">{title}</h2>
+          <p>{description}</p>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="cancel-button" onClick={onClose}>
+            {cancelLabel}
+          </button>
+          <button type="button" className="submit-button danger-submit-button" onClick={onConfirm}>
+            {confirmLabel}
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 function RecordConfirmModal({
   habit,
   recordDate,
@@ -1974,8 +2243,10 @@ function AppModal({
   habits,
   records,
   initialHabitId,
+  editHabit,
   onClose,
   onCreateHabit,
+  onUpdateHabit,
   onCreateGroup,
   onCreateRecord,
 }: {
@@ -1983,11 +2254,14 @@ function AppModal({
   habits: Habit[]
   records: RecordItem[]
   initialHabitId?: number
+  editHabit?: Habit
   onClose: () => void
   onCreateHabit: (habit: Omit<Habit, 'id' | 'completed' | 'createdAt'>) => void
+  onUpdateHabit: (habitId: number, patch: Pick<Habit, 'title' | 'schedule'>) => void
   onCreateGroup: (group: Omit<Group, 'id' | 'uploadedAt'>) => void
   onCreateRecord: (payload: { habitId: number; date: string }) => void
 }) {
+  const isEditing = editHabit != null
   const [tab, setTab] = useState<ModalMode>(mode === 'record' && habits.length === 0 ? 'habit' : mode)
   const canShowRecordTab = mode === 'record' && habits.length > 0
   const [habitId, setHabitId] = useState(initialHabitId?.toString() ?? habits[0]?.id.toString() ?? '')
@@ -1995,19 +2269,16 @@ function AppModal({
   const [datePickerMonth, setDatePickerMonth] = useState(currentCalendarMonth)
   const [isHabitMenuOpen, setIsHabitMenuOpen] = useState(false)
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
-  const [habitKind, setHabitKind] = useState<HabitKind>('positive')
-  const [habitTitle, setHabitTitle] = useState('')
-  const [isWeekdayScheduleEnabled, setIsWeekdayScheduleEnabled] = useState(false)
-  const [selectedWeekdays, setSelectedWeekdays] = useState<Weekday[]>([])
-  const [isHabitTargetEnabled, setIsHabitTargetEnabled] = useState(false)
-  const [selectedHabitTargetUnits, setSelectedHabitTargetUnits] = useState<HabitTargetUnit[]>([])
-  const [habitTargetCounts, setHabitTargetCounts] = useState<Record<HabitTargetUnit, number>>({
-    day: 1,
-    week: 1,
-    month: 1,
-  })
-  const [habitDurationUnit, setHabitDurationUnit] = useState<HabitDurationUnit>('forever')
-  const [habitDurationCount, setHabitDurationCount] = useState(3)
+  const [habitKind, setHabitKind] = useState<HabitKind>(editHabit?.kind ?? 'positive')
+  const [habitTitle, setHabitTitle] = useState(editHabit?.title ?? '')
+  const [isWeekdayScheduleEnabled, setIsWeekdayScheduleEnabled] = useState(
+    editHabit?.schedule.weekdaysEnabled ?? false,
+  )
+  const [selectedWeekdays, setSelectedWeekdays] = useState<Weekday[]>(editHabit?.schedule.weekdays ?? [])
+  const [habitDurationUnit, setHabitDurationUnit] = useState<HabitDurationUnit>(
+    editHabit?.schedule.durationUnit ?? 'forever',
+  )
+  const [habitDurationCount, setHabitDurationCount] = useState(editHabit?.schedule.durationCount ?? 3)
   const [habitEndDate] = useState(todayIso)
   const [habitWeekInterval] = useState<HabitWeekInterval>(1)
   const [isMonthWeekOrdinalEnabled] = useState(false)
@@ -2029,7 +2300,6 @@ function AppModal({
   const canCreateHabit =
     habitTitle.trim().length > 0 &&
     (habitDurationUnit === 'forever' || habitDurationUnit === 'date' ? habitDurationUnit === 'forever' || habitEndDate !== '' : habitDurationCount > 0) &&
-    (!isHabitTargetEnabled || selectedHabitTargetUnits.length > 0) &&
     (habitKind === 'negative' ||
       ((!isWeekdayScheduleEnabled || selectedWeekdays.length > 0) &&
         (!isMonthWeekOrdinalEnabled || selectedMonthWeekOrdinals.length > 0)))
@@ -2065,25 +2335,6 @@ function AppModal({
     )
   }
 
-  function toggleHabitTargetUnit(unit: HabitTargetUnit) {
-    setSelectedHabitTargetUnits((current) =>
-      current.includes(unit) ? current.filter((item) => item !== unit) : [...current, unit],
-    )
-  }
-
-  function updateHabitTargetCount(unit: HabitTargetUnit, value: string) {
-    const parsedValue = Number(value)
-    setHabitTargetCounts((current) => ({
-      ...current,
-      [unit]: Number.isFinite(parsedValue) ? Math.max(1, Math.min(99, Math.floor(parsedValue))) : 1,
-    }))
-  }
-
-  function adjustHabitTargetCount(unit: HabitTargetUnit, amount: number) {
-    const currentCount = habitTargetCounts[unit]
-    updateHabitTargetCount(unit, String(Math.max(1, Math.min(99, currentCount + amount))))
-  }
-
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
@@ -2094,33 +2345,27 @@ function AppModal({
     }
 
     if (tab === 'habit' && canCreateHabit) {
-      onCreateHabit({
-        title: habitTitle.trim(),
-        kind: habitKind,
-        schedule: {
-          weekdaysEnabled: isWeekdayScheduleEnabled,
-          weekdays: habitKind === 'positive' && isWeekdayScheduleEnabled ? selectedWeekdays : [],
-          targetEnabled: habitKind === 'positive' && isHabitTargetEnabled,
-          targetUnit: selectedHabitTargetUnits[0] ?? 'day',
-          targetCount:
-            habitKind === 'positive' && isHabitTargetEnabled
-              ? habitTargetCounts[selectedHabitTargetUnits[0] ?? 'day']
-              : 1,
-          targetCounts:
-            habitKind === 'positive' && isHabitTargetEnabled
-              ? selectedHabitTargetUnits.reduce<HabitTargetCounts>((acc, unit) => {
-                  acc[unit] = habitTargetCounts[unit]
-                  return acc
-                }, {})
-              : {},
-          durationUnit: habitDurationUnit,
-          durationCount: habitDurationCount,
-          endDate: habitDurationUnit === 'date' ? habitEndDate : undefined,
-          weekInterval: habitKind === 'positive' ? habitWeekInterval : 1,
-          monthWeekOrdinalsEnabled: habitKind === 'positive' && isMonthWeekOrdinalEnabled,
-          monthWeekOrdinals: habitKind === 'positive' && isMonthWeekOrdinalEnabled ? selectedMonthWeekOrdinals : [],
-        },
-      })
+      const schedule: HabitSchedule = {
+        weekdaysEnabled: isWeekdayScheduleEnabled,
+        weekdays: habitKind === 'positive' && isWeekdayScheduleEnabled ? selectedWeekdays : [],
+        targetEnabled: false,
+        targetUnit: 'day',
+        targetCount: 1,
+        targetCounts: {},
+        durationUnit: habitDurationUnit,
+        durationCount: habitDurationCount,
+        endDate: habitDurationUnit === 'date' ? habitEndDate : undefined,
+        weekInterval: habitKind === 'positive' ? habitWeekInterval : 1,
+        monthWeekOrdinalsEnabled: habitKind === 'positive' && isMonthWeekOrdinalEnabled,
+        monthWeekOrdinals: habitKind === 'positive' && isMonthWeekOrdinalEnabled ? selectedMonthWeekOrdinals : [],
+      }
+
+      if (editHabit != null) {
+        onUpdateHabit(editHabit.id, { title: habitTitle.trim(), schedule })
+      } else {
+        onCreateHabit({ title: habitTitle.trim(), kind: habitKind, schedule })
+      }
+
       onClose()
       return
     }
@@ -2146,12 +2391,12 @@ function AppModal({
               기록하기
             </button>
             <button type="button" className={tab === 'habit' ? 'active' : ''} onClick={() => setTab('habit')}>
-              습관 만들기
+              만들기
             </button>
           </div>
         ) : (
           <h2 className="modal-title">
-            {mode === 'group' ? '모임 만들기' : habitKind === 'negative' ? '버릇 만들기' : '습관 만들기'}
+            {isEditing ? '수정하기' : mode === 'group' ? '모임 만들기' : '만들기'}
           </h2>
         )}
 
@@ -2261,16 +2506,16 @@ function AppModal({
                   type="button"
                   className={habitKind === 'positive' ? 'active positive' : 'positive'}
                   onClick={() => setHabitKind('positive')}
+                  disabled={isEditing}
                 >
-                  <CirclePlus className="habit-kind-icon" strokeWidth={2.2} aria-hidden="true" />
                   습관
                 </button>
                 <button
                   type="button"
                   className={habitKind === 'negative' ? 'active negative' : 'negative'}
                   onClick={() => setHabitKind('negative')}
+                  disabled={isEditing}
                 >
-                  <CircleMinus className="habit-kind-icon" strokeWidth={2.2} aria-hidden="true" />
                   버릇
                 </button>
               </div>
@@ -2291,7 +2536,7 @@ function AppModal({
                         checked={isWeekdayScheduleEnabled}
                         onChange={(event) => setIsWeekdayScheduleEnabled(event.target.checked)}
                       />
-                      <span>특정 요일 지정</span>
+                      <span>요일 선택</span>
                     </label>
                     {isWeekdayScheduleEnabled && (
                       <div className="weekday-picker" aria-label="요일">
@@ -2304,55 +2549,6 @@ function AppModal({
                           >
                             {day.label}
                           </button>
-                        ))}
-                      </div>
-                    )}
-                    <label className="habit-toggle-row compact">
-                      <input
-                        type="checkbox"
-                        checked={isHabitTargetEnabled}
-                        onChange={(event) => setIsHabitTargetEnabled(event.target.checked)}
-                      />
-                      <span>목표 설정</span>
-                    </label>
-                    {isHabitTargetEnabled && (
-                      <div className="habit-target-options target-unit-grid" aria-label="목표">
-                        {[
-                          { unit: 'day' as const, label: '하루' },
-                          { unit: 'week' as const, label: '주' },
-                          { unit: 'month' as const, label: '월' },
-                        ].map((target) => (
-                          <div
-                            className={selectedHabitTargetUnits.includes(target.unit) ? 'target-unit-card selected' : 'target-unit-card'}
-                            key={target.unit}
-                          >
-                            <button type="button" className="target-unit-select" onClick={() => toggleHabitTargetUnit(target.unit)}>
-                              {target.label}
-                            </button>
-                            {selectedHabitTargetUnits.includes(target.unit) && (
-                              <div className="target-count-picker" aria-label={`${target.label} 목표 횟수`}>
-                                <button
-                                  type="button"
-                                  className="target-count-step"
-                                  onClick={() => adjustHabitTargetCount(target.unit, -1)}
-                                  disabled={habitTargetCounts[target.unit] <= 1}
-                                  aria-label={`${target.label} 횟수 줄이기`}
-                                >
-                                  <Minus size={15} strokeWidth={2.4} aria-hidden="true" />
-                                </button>
-                                <strong>{habitTargetCounts[target.unit]}회</strong>
-                                <button
-                                  type="button"
-                                  className="target-count-step"
-                                  onClick={() => adjustHabitTargetCount(target.unit, 1)}
-                                  disabled={habitTargetCounts[target.unit] >= 99}
-                                  aria-label={`${target.label} 횟수 늘리기`}
-                                >
-                                  <Plus size={15} strokeWidth={2.4} aria-hidden="true" />
-                                </button>
-                              </div>
-                            )}
-                          </div>
                         ))}
                       </div>
                     )}
@@ -2386,7 +2582,7 @@ function AppModal({
                   취소
                 </button>
                 <button type="submit" className="submit-button" disabled={!canCreateHabit}>
-                  만들기
+                  {isEditing ? '저장하기' : '만들기'}
                 </button>
               </div>
             </>
@@ -2552,6 +2748,10 @@ function App() {
   const [screen, setScreen] = useState<Screen>('home')
   const [modalMode, setModalMode] = useState<ModalMode | null>(null)
   const [pendingRecord, setPendingRecord] = useState<{ habitId: number; date: string } | null>(null)
+  const [isHabitEditMode, setIsHabitEditMode] = useState(false)
+  const [habitActionId, setHabitActionId] = useState<number | null>(null)
+  const [pendingDeleteHabitId, setPendingDeleteHabitId] = useState<number | null>(null)
+  const [editingHabitId, setEditingHabitId] = useState<number | null>(null)
   const [selectedHabitId, setSelectedHabitId] = useState<number | undefined>()
   const [detailHabitId, setDetailHabitId] = useState<number | null>(null)
   const [detailGroup, setDetailGroup] = useState<Group | null>(null)
@@ -2586,6 +2786,12 @@ function App() {
   const pendingJoinGroupProfile = pendingJoinGroup == null ? undefined : groupProfiles[getGroupKey(pendingJoinGroup)]
   const activeGroupMembers = useMemo(() => getGroupMembers(activeGroupProfile), [activeGroupProfile])
   const pendingRecordHabit = pendingRecord == null ? undefined : habits.find((habit) => habit.id === pendingRecord.habitId)
+  const habitActionTarget = habitActionId == null ? undefined : habits.find((habit) => habit.id === habitActionId)
+  const pendingDeleteHabit =
+    pendingDeleteHabitId == null ? undefined : habits.find((habit) => habit.id === pendingDeleteHabitId)
+  const editingHabit = editingHabitId == null ? undefined : habits.find((habit) => habit.id === editingHabitId)
+  const pendingDeleteRecordCount =
+    pendingDeleteHabitId == null ? 0 : records.filter((record) => record.habitId === pendingDeleteHabitId).length
 
   useEffect(() => {
     const payload: StoredAppState = {
@@ -2614,6 +2820,7 @@ function App() {
 
   function moveScreen(nextScreen: Screen) {
     setScreen(nextScreen)
+    setIsHabitEditMode(false)
     if (nextScreen !== 'habitDetail') {
       setDetailHabitId(null)
     }
@@ -2676,6 +2883,47 @@ function App() {
     setHabits((current) => [...current, { ...habit, id: nextHabitId, completed: false, createdAt: todayIso }])
   }
 
+  function updateHabit(habitId: number, patch: Pick<Habit, 'title' | 'schedule'>) {
+    const previousTitle = habits.find((habit) => habit.id === habitId)?.title
+
+    setHabits((current) => current.map((habit) => (habit.id === habitId ? { ...habit, ...patch } : habit)))
+
+    if (patch.title !== previousTitle) {
+      setRecords((current) =>
+        current.map((record) => (record.habitId === habitId ? { ...record, habitTitle: patch.title } : record)),
+      )
+    }
+
+    setIsHabitEditMode(false)
+  }
+
+  function deleteHabit(habitId: number) {
+    setHabits((current) => current.filter((habit) => habit.id !== habitId))
+    setIsHabitEditMode(false)
+  }
+
+  function openHabitAction(habitId: number) {
+    setHabitActionId(habitId)
+  }
+
+  function requestHabitEdit() {
+    setEditingHabitId(habitActionId)
+    setHabitActionId(null)
+  }
+
+  function requestHabitDelete() {
+    setPendingDeleteHabitId(habitActionId)
+    setHabitActionId(null)
+  }
+
+  function confirmHabitDelete() {
+    if (pendingDeleteHabitId != null) {
+      deleteHabit(pendingDeleteHabitId)
+    }
+
+    setPendingDeleteHabitId(null)
+  }
+
   function createGroup(group: Omit<Group, 'id' | 'uploadedAt'>) {
     setGroups((current) => [...current, { ...group, id: nextGroupId, uploadedAt: new Date() }])
   }
@@ -2713,6 +2961,29 @@ function App() {
 
   function createGroupChallenge(group: Group, challenge: GroupChallenge) {
     updateGroupChallenges(group, (currentChallenges) => [...currentChallenges, challenge])
+  }
+
+  function deleteGroupChallenge(group: Group, challengeId: number) {
+    updateGroupChallenges(group, (currentChallenges) =>
+      currentChallenges.filter((challenge) => challenge.id !== challengeId),
+    )
+  }
+
+  function leaveGroupChallenge(group: Group, challengeId: number) {
+    updateGroupChallenges(group, (currentChallenges) =>
+      currentChallenges.map((challenge) => {
+        if (challenge.id !== challengeId) {
+          return challenge
+        }
+
+        return {
+          ...challenge,
+          isParticipating: false,
+          lastRecordedDate: undefined,
+          progress: challenge.progress.filter((progress) => progress.memberId !== currentUserId),
+        }
+      }),
+    )
   }
 
   function joinGroupChallenge(group: Group, challengeId: number) {
@@ -2824,6 +3095,8 @@ function App() {
           onCreateChallenge={(challenge) => createGroupChallenge(activeGroup, challenge)}
           onJoinChallenge={(challengeId) => joinGroupChallenge(activeGroup, challengeId)}
           onRecordChallenge={(challengeId) => recordGroupChallenge(activeGroup, challengeId)}
+          onDeleteChallenge={(challengeId) => deleteGroupChallenge(activeGroup, challengeId)}
+          onLeaveChallenge={(challengeId) => leaveGroupChallenge(activeGroup, challengeId)}
         />
       ) : screen === 'habitDetail' && detailHabit != null ? (
         <HabitDetail
@@ -2835,6 +3108,9 @@ function App() {
         <HabitOverview
           habits={habits}
           records={records}
+          isEditMode={isHabitEditMode}
+          onToggleEditMode={() => setIsHabitEditMode((current) => !current)}
+          onEditHabit={openHabitAction}
           onBack={() => moveScreen('home')}
           onOpenHabitDetail={openHabitDetail}
         />
@@ -2842,21 +3118,51 @@ function App() {
         <Home
           habits={habits}
           records={records}
+          isEditMode={isHabitEditMode}
+          onToggleEditMode={() => setIsHabitEditMode((current) => !current)}
+          onEditHabit={openHabitAction}
           onOpenHabit={() => setModalMode('habit')}
           onRequestRecord={(habitId, date) => setPendingRecord({ habitId, date })}
         />
       )}
 
-      {modalMode != null && (
+      {(modalMode != null || editingHabit != null) && (
         <AppModal
-          mode={modalMode}
+          mode={editingHabit != null ? 'habit' : modalMode ?? 'habit'}
           habits={habits}
           records={records}
           initialHabitId={selectedHabitId}
-          onClose={closeModal}
+          editHabit={editingHabit}
+          onClose={() => {
+            setEditingHabitId(null)
+            closeModal()
+          }}
           onCreateHabit={createHabit}
+          onUpdateHabit={updateHabit}
           onCreateGroup={createGroup}
           onCreateRecord={createRecord}
+        />
+      )}
+
+      {habitActionTarget != null && (
+        <HabitActionSheet
+          habit={habitActionTarget}
+          onClose={() => setHabitActionId(null)}
+          onEdit={requestHabitEdit}
+          onDelete={requestHabitDelete}
+        />
+      )}
+
+      {pendingDeleteHabit != null && (
+        <DeleteConfirmModal
+          title={pendingDeleteHabit.title}
+          description={
+            pendingDeleteRecordCount === 0
+              ? '이 습관을 삭제할까요?'
+              : `이 습관을 삭제할까요? 지난 기록 ${pendingDeleteRecordCount}회는 그대로 남습니다.`
+          }
+          onClose={() => setPendingDeleteHabitId(null)}
+          onConfirm={confirmHabitDelete}
         />
       )}
 
