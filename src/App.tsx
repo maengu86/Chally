@@ -1,16 +1,48 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { ArrowLeft, Camera, ChevronLeft, ChevronRight, Lock, LockOpen, Plus, Search, UsersRound } from 'lucide-react'
+import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  CircleMinus,
+  CirclePlus,
+  Minus,
+  Plus,
+  Search,
+} from 'lucide-react'
 
-type Screen = 'home' | 'groups' | 'habitDetail' | 'groupDetail' | 'groupMembers'
+type Screen = 'home' | 'groups' | 'habitOverview' | 'habitDetail' | 'groupDetail' | 'groupMembers'
 type ModalMode = 'record' | 'habit' | 'group'
-type HabitDetailConcept = 'status1' | 'status2' | 'status3' | 'status4' | 'status5'
+type HabitKind = 'positive' | 'negative'
+type HabitTargetUnit = 'day' | 'week' | 'month'
+type HabitTargetCounts = Partial<Record<HabitTargetUnit, number>>
+type HabitDurationUnit = 'forever' | 'week' | 'month' | 'date'
+type HabitWeekInterval = 1 | 2 | 3
+type MonthWeekOrdinal = 1 | 2 | 3 | 4 | 5
+type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6
+
+type HabitSchedule = {
+  weekdaysEnabled: boolean
+  weekdays: Weekday[]
+  targetEnabled: boolean
+  targetUnit: HabitTargetUnit
+  targetCount: number
+  targetCounts: HabitTargetCounts
+  durationUnit: HabitDurationUnit
+  durationCount: number
+  endDate?: string
+  weekInterval: HabitWeekInterval
+  monthWeekOrdinalsEnabled: boolean
+  monthWeekOrdinals: MonthWeekOrdinal[]
+}
 
 type Habit = {
   id: number
   title: string
   completed: boolean
   createdAt: string
+  kind: HabitKind
+  schedule: HabitSchedule
 }
 
 type RecordItem = {
@@ -44,6 +76,10 @@ type UserProfile = {
   avatarDataUrl?: string
 }
 
+type GroupProfile = {
+  nickname: string
+}
+
 type GroupChallengeProgress = {
   memberId: number
   completedCount: number
@@ -56,6 +92,7 @@ type GroupChallenge = {
   title: string
   summary: string
   isParticipating: boolean
+  lastRecordedDate?: string
   progress: GroupChallengeProgress[]
 }
 
@@ -71,6 +108,47 @@ yesterday.setDate(appToday.getDate() - 1)
 const yesterdayIso = toISODate(yesterday.getFullYear(), yesterday.getMonth() + 1, yesterday.getDate())
 const mockHabitCreatedAt = toISODate(calendarYear, currentCalendarMonth, 1)
 const currentUserId = 1
+const defaultHabitSchedule: HabitSchedule = {
+  weekdaysEnabled: false,
+  weekdays: [],
+  targetEnabled: false,
+  targetUnit: 'day',
+  targetCount: 1,
+  targetCounts: {},
+  durationUnit: 'month',
+  durationCount: 3,
+  endDate: undefined,
+  weekInterval: 1,
+  monthWeekOrdinalsEnabled: false,
+  monthWeekOrdinals: [],
+}
+const defaultHabitKind: HabitKind = 'positive'
+
+const weekdayOptions: { value: Weekday; label: string }[] = [
+  { value: 1, label: '월' },
+  { value: 2, label: '화' },
+  { value: 3, label: '수' },
+  { value: 4, label: '목' },
+  { value: 5, label: '금' },
+  { value: 6, label: '토' },
+  { value: 0, label: '일' },
+]
+
+const monthWeekOptions: { value: MonthWeekOrdinal; label: string }[] = [
+  { value: 1, label: '첫째' },
+  { value: 2, label: '둘째' },
+  { value: 3, label: '셋째' },
+  { value: 4, label: '넷째' },
+  { value: 5, label: '마지막' },
+]
+
+const durationPresets: { unit: HabitDurationUnit; value: number; label: string }[] = [
+  { unit: 'forever', value: 0, label: '매일' },
+  { unit: 'week', value: 2, label: '격주' },
+  { unit: 'month', value: 1, label: '1개월' },
+  { unit: 'month', value: 3, label: '3개월' },
+  { unit: 'month', value: 6, label: '6개월' },
+]
 
 const recommendedGroups: Group[] = [
   { id: 1001, title: '여름 물마시기 챌린지', isPrivate: false, uploadedAt: minutesAgo(18) },
@@ -82,12 +160,12 @@ const recommendedGroups: Group[] = [
 ]
 
 const mockHabits: Habit[] = [
-  { id: 1, title: '물 8잔 마시기', completed: true, createdAt: mockHabitCreatedAt },
-  { id: 2, title: '햇빛 피해서 산책', completed: false, createdAt: mockHabitCreatedAt },
-  { id: 3, title: '여름 컨디션 기록', completed: true, createdAt: mockHabitCreatedAt },
-  { id: 4, title: '카페인 줄이기', completed: false, createdAt: mockHabitCreatedAt },
-  { id: 5, title: '가벼운 샤워', completed: true, createdAt: mockHabitCreatedAt },
-  { id: 6, title: '취침 전 환기', completed: false, createdAt: mockHabitCreatedAt },
+  { id: 1, title: '물 8잔 마시기', completed: true, createdAt: mockHabitCreatedAt, kind: 'positive', schedule: defaultHabitSchedule },
+  { id: 2, title: '햇빛 피해서 산책', completed: false, createdAt: mockHabitCreatedAt, kind: 'positive', schedule: defaultHabitSchedule },
+  { id: 3, title: '여름 컨디션 기록', completed: true, createdAt: mockHabitCreatedAt, kind: 'positive', schedule: defaultHabitSchedule },
+  { id: 4, title: '카페인 줄이기', completed: false, createdAt: mockHabitCreatedAt, kind: 'positive', schedule: defaultHabitSchedule },
+  { id: 5, title: '가벼운 샤워', completed: true, createdAt: mockHabitCreatedAt, kind: 'positive', schedule: defaultHabitSchedule },
+  { id: 6, title: '취침 전 환기', completed: false, createdAt: mockHabitCreatedAt, kind: 'positive', schedule: defaultHabitSchedule },
 ]
 
 const mockRecords: RecordItem[] = [
@@ -271,7 +349,8 @@ const groupChallenges: GroupChallenge[] = [
 
 type StoredAppState = {
   userProfile?: UserProfile
-  habits?: Array<Omit<Habit, 'createdAt'> & { createdAt?: string }>
+  groupProfiles?: Record<string, GroupProfile>
+  habits?: Array<Omit<Habit, 'createdAt' | 'schedule' | 'kind'> & { createdAt?: string; kind?: HabitKind; schedule?: Partial<HabitSchedule> }>
   records?: RecordItem[]
   groups?: Array<Omit<Group, 'uploadedAt'> & { uploadedAt: string }>
   groupChallengesByGroup?: GroupChallengeStore
@@ -356,8 +435,25 @@ function normalizeStoredUserProfile(userProfile: StoredAppState['userProfile']) 
   }
 }
 
-function getGroupMembers(userProfile: UserProfile | null) {
-  if (userProfile == null) {
+function normalizeStoredGroupProfiles(groupProfiles: StoredAppState['groupProfiles']) {
+  if (groupProfiles == null || typeof groupProfiles !== 'object' || Array.isArray(groupProfiles)) {
+    return {}
+  }
+
+  return Object.entries(groupProfiles).reduce<Record<string, GroupProfile>>((acc, [groupKey, profile]) => {
+    if (profile == null || typeof profile.nickname !== 'string' || profile.nickname.trim().length === 0) {
+      return acc
+    }
+
+    acc[groupKey] = {
+      nickname: profile.nickname.trim(),
+    }
+    return acc
+  }, {})
+}
+
+function getGroupMembers(groupProfile: GroupProfile | null) {
+  if (groupProfile == null) {
     return groupMembers
   }
 
@@ -365,9 +461,8 @@ function getGroupMembers(userProfile: UserProfile | null) {
     member.id === currentUserId
       ? {
           ...member,
-          name: userProfile.nickname,
+          name: groupProfile.nickname,
           status: '내 기록',
-          avatarDataUrl: userProfile.avatarDataUrl,
         }
       : member,
   )
@@ -401,6 +496,67 @@ function normalizeStoredRecords(records: StoredAppState['records']) {
   }))
 }
 
+function normalizeHabitSchedule(schedule: Partial<HabitSchedule> | undefined): HabitSchedule {
+  const targetUnit =
+    schedule?.targetUnit === 'week' || schedule?.targetUnit === 'month' || schedule?.targetUnit === 'day'
+      ? schedule.targetUnit
+      : defaultHabitSchedule.targetUnit
+  const targetCount =
+    typeof schedule?.targetCount === 'number' && Number.isFinite(schedule.targetCount)
+      ? Math.max(1, Math.min(99, Math.floor(schedule.targetCount)))
+      : defaultHabitSchedule.targetCount
+  const storedTargetCounts =
+    schedule?.targetCounts != null && typeof schedule.targetCounts === 'object' ? schedule.targetCounts : {}
+  const targetCounts = (['day', 'week', 'month'] as HabitTargetUnit[]).reduce<HabitTargetCounts>((acc, unit) => {
+    const count = storedTargetCounts[unit]
+    if (typeof count === 'number' && Number.isFinite(count)) {
+      acc[unit] = Math.max(1, Math.min(99, Math.floor(count)))
+    }
+    return acc
+  }, {})
+  if (Boolean(schedule?.targetEnabled) && Object.keys(targetCounts).length === 0) {
+    targetCounts[targetUnit] = targetCount
+  }
+  const weekdays = Array.isArray(schedule?.weekdays)
+    ? schedule.weekdays.filter((day): day is Weekday => weekdayOptions.some((option) => option.value === day))
+    : []
+  const durationUnit = schedule?.durationUnit === 'forever' || schedule?.durationUnit === 'week' || schedule?.durationUnit === 'month' || schedule?.durationUnit === 'date'
+    ? schedule.durationUnit
+    : defaultHabitSchedule.durationUnit
+  const durationCount =
+    typeof schedule?.durationCount === 'number' && Number.isFinite(schedule.durationCount)
+      ? Math.max(1, Math.min(36, Math.floor(schedule.durationCount)))
+      : defaultHabitSchedule.durationCount
+  const weekInterval =
+    schedule?.weekInterval === 2 || schedule?.weekInterval === 3 || schedule?.weekInterval === 1
+      ? schedule.weekInterval
+      : defaultHabitSchedule.weekInterval
+  const monthWeekOrdinals = Array.isArray(schedule?.monthWeekOrdinals)
+    ? schedule.monthWeekOrdinals.filter((ordinal): ordinal is MonthWeekOrdinal =>
+        monthWeekOptions.some((option) => option.value === ordinal),
+      )
+    : []
+
+  return {
+    weekdaysEnabled: Boolean(schedule?.weekdaysEnabled) && weekdays.length > 0,
+    weekdays,
+    targetEnabled: Boolean(schedule?.targetEnabled),
+    targetUnit,
+    targetCount,
+    targetCounts,
+    durationUnit,
+    durationCount,
+    endDate: typeof schedule?.endDate === 'string' ? normalizeRecordDate(schedule.endDate) : undefined,
+    weekInterval,
+    monthWeekOrdinalsEnabled: Boolean(schedule?.monthWeekOrdinalsEnabled) && monthWeekOrdinals.length > 0,
+    monthWeekOrdinals,
+  }
+}
+
+function normalizeHabitKind(kind: HabitKind | undefined): HabitKind {
+  return kind === 'negative' ? 'negative' : defaultHabitKind
+}
+
 function normalizeStoredHabits(habits: StoredAppState['habits'], records: RecordItem[]) {
   if (!Array.isArray(habits)) {
     return mockHabits
@@ -415,6 +571,8 @@ function normalizeStoredHabits(habits: StoredAppState['habits'], records: Record
     return {
       ...habit,
       createdAt: normalizeRecordDate(habit.createdAt ?? firstRecordDate ?? todayIso),
+      kind: normalizeHabitKind(habit.kind),
+      schedule: normalizeHabitSchedule(habit.schedule),
     }
   })
 }
@@ -434,7 +592,7 @@ function TopBar({
       <nav className="top-tabs" aria-label="주요 화면">
         <button
           type="button"
-          className={screen === 'home' || screen === 'habitDetail' ? 'active' : ''}
+          className={screen === 'home' || screen === 'habitOverview' || screen === 'habitDetail' ? 'active' : ''}
           onClick={() => onMove('home')}
         >
           기록
@@ -456,7 +614,7 @@ function MonthOverview({
   onDateChange,
 }: {
   records: RecordItem[]
-  onDateChange: (date: { month: number; day: number }) => void
+  onDateChange: (date: { month: number; day: number | null }) => void
 }) {
   const [currentMonth, setCurrentMonth] = useState(currentCalendarMonth)
   const [selectedDay, setSelectedDay] = useState<number | null>(currentCalendarDay)
@@ -481,7 +639,7 @@ function MonthOverview({
   function moveMonth(direction: -1 | 1) {
     setCurrentMonth((month) => {
       const nextMonth = Math.min(currentCalendarMonth, Math.max(1, month + direction))
-      const nextSelectedDay = nextMonth === currentCalendarMonth ? currentCalendarDay : 1
+      const nextSelectedDay = nextMonth === currentCalendarMonth ? currentCalendarDay : null
       setSelectedDay(nextSelectedDay)
       onDateChange({ month: nextMonth, day: nextSelectedDay })
       return nextMonth
@@ -643,14 +801,14 @@ function Home({
   habits,
   records,
   onOpenHabit,
-  onOpenHabitDetail,
+  onRequestRecord,
 }: {
   habits: Habit[]
   records: RecordItem[]
   onOpenHabit: () => void
-  onOpenHabitDetail: (habitId: number) => void
+  onRequestRecord: (habitId: number, date: string) => void
 }) {
-  const [selectedCalendarDate, setSelectedCalendarDate] = useState({
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<{ month: number; day: number | null }>({
     month: currentCalendarMonth,
     day: currentCalendarDay,
   })
@@ -658,14 +816,23 @@ function Home({
     (record) => getRecordMonth(record) === selectedCalendarDate.month && getRecordDay(record) === selectedCalendarDate.day,
   )
   const selectedDateRecordHabitIds = new Set(selectedDateRecords.map((record) => record.habitId))
+  const selectedDateRecordCountByHabit = selectedDateRecords.reduce<Record<number, number>>((acc, record) => {
+    acc[record.habitId] = (acc[record.habitId] ?? 0) + 1
+    return acc
+  }, {})
   const isSelectedToday =
     selectedCalendarDate.month === currentCalendarMonth && selectedCalendarDate.day === currentCalendarDay
-  const selectedDateIso = toISODate(calendarYear, selectedCalendarDate.month, selectedCalendarDate.day)
+  const selectedDateIso =
+    selectedCalendarDate.day == null
+      ? toISODate(calendarYear, selectedCalendarDate.month, getDaysInMonth(calendarYear, selectedCalendarDate.month))
+      : toISODate(calendarYear, selectedCalendarDate.month, selectedCalendarDate.day)
+  const hasSelectedDay = selectedCalendarDate.day != null
   const orderedHabits = habits
     .filter((habit) => normalizeRecordDate(habit.createdAt) <= selectedDateIso)
     .map((habit) => ({
       ...habit,
-      completed: selectedDateRecordHabitIds.has(habit.id),
+      recordCount: selectedDateRecordCountByHabit[habit.id] ?? 0,
+      completed: habit.kind === 'positive' && selectedDateRecordHabitIds.has(habit.id),
     }))
     .sort((a, b) => {
       const completionDiff = isSelectedToday
@@ -676,25 +843,46 @@ function Home({
 
   return (
     <main className="content">
-      <MonthOverview records={records} onDateChange={setSelectedCalendarDate} />
+      <MonthOverview
+        records={records}
+        onDateChange={setSelectedCalendarDate}
+      />
 
       <section className="section-block">
-        <div className="section-header">
-          <div>
-            <h2>내 습관</h2>
+        {isSelectedToday ? (
+          <div className="section-header habit-add-row">
+            <button type="button" className="text-button icon-add-button" onClick={onOpenHabit} aria-label="습관 추가">
+              <Plus className="ui-icon ui-icon--plus" strokeWidth={2.3} aria-hidden="true" />
+            </button>
           </div>
-          <button type="button" className="text-button icon-add-button" onClick={onOpenHabit} aria-label="습관 추가">
-            <Plus className="ui-icon ui-icon--plus" strokeWidth={2.3} aria-hidden="true" />
-          </button>
-        </div>
+        ) : !hasSelectedDay ? (
+          <div className="section-header">
+            <div>
+              <h2>월간 리포트</h2>
+            </div>
+          </div>
+        ) : null}
 
-        {orderedHabits.length === 0 ? (
+        {!hasSelectedDay ? (
+          <MonthReport
+            habits={orderedHabits}
+            records={records.filter((record) => getRecordMonth(record) === selectedCalendarDate.month)}
+          />
+        ) : !isSelectedToday ? (
+          <PastDaySummary
+            records={selectedDateRecords}
+          />
+        ) : orderedHabits.length === 0 ? (
           <button type="button" className="empty-cta" onClick={onOpenHabit}>
             <strong>{habits.length === 0 ? '아직 습관이 없어요' : '이 날짜에는 습관이 없어요'}</strong>
             <span>{habits.length === 0 ? '눌러서 첫 습관을 만들어보세요' : '습관을 만든 날부터 목록에 표시됩니다'}</span>
           </button>
         ) : (
-          <HabitPagedGrid habits={orderedHabits} onOpenHabitDetail={onOpenHabitDetail} />
+          <HabitPagedGrid
+            habits={orderedHabits}
+            recordDate={selectedDateIso}
+            onRequestRecord={onRequestRecord}
+          />
         )}
       </section>
 
@@ -702,17 +890,93 @@ function Home({
   )
 }
 
-function HabitPagedGrid({
+function PastDaySummary({
+  records,
+}: {
+  records: RecordItem[]
+}) {
+  return (
+    <section className="past-day-summary" aria-label="선택한 날짜 기록">
+      {records.length === 0 ? (
+        <p className="quiet-empty compact-empty">기록된 습관이 없어요</p>
+      ) : (
+        <div className="past-day-records">
+          {records.map((record) => (
+            <article className="past-day-record" key={record.id}>
+              <span className={record.memo === '버릇' ? 'habit-status-badge vice-inline' : 'habit-status-badge done-inline'}>
+                {record.memo === '버릇' ? '기록' : '완료'}
+              </span>
+              <strong>{record.habitTitle}</strong>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function MonthReport({
   habits,
-  onOpenHabitDetail,
+  records,
 }: {
   habits: Habit[]
-  onOpenHabitDetail: (habitId: number) => void
+  records: RecordItem[]
+}) {
+  const recordDays = new Set(records.map((record) => record.date))
+  const daysInReportMonth = records[0] == null ? 0 : getDaysInMonth(calendarYear, getRecordMonth(records[0]) ?? currentCalendarMonth)
+  const reportRate = daysInReportMonth === 0 ? 0 : Math.round((recordDays.size / daysInReportMonth) * 100)
+  const habitCounts = records.reduce<Record<string, number>>((acc, record) => {
+    acc[record.habitTitle] = (acc[record.habitTitle] ?? 0) + 1
+    return acc
+  }, {})
+  const topHabit = Object.entries(habitCounts).sort((a, b) => b[1] - a[1])[0]
+
+  return (
+    <section className="month-report" aria-label="월간 리포트">
+      <div className="month-report-hero">
+        <div>
+          <span>기록 밀도</span>
+          <strong>{reportRate}%</strong>
+        </div>
+        <div className="month-report-track" aria-hidden="true">
+          <i style={{ width: `${reportRate}%` }} />
+        </div>
+      </div>
+      <div className="month-report-list">
+        <div className="month-report-row">
+          <span>기록한 날</span>
+          <strong>{recordDays.size}일</strong>
+        </div>
+        <div className="month-report-row">
+          <span>완료 기록</span>
+          <strong>{records.length}회</strong>
+        </div>
+        <div className="month-report-row">
+          <span>등록 습관</span>
+          <strong>{habits.length}개</strong>
+        </div>
+        <div className="month-report-row">
+          <span>가장 자주 한 습관</span>
+          <strong>{topHabit == null ? '없음' : topHabit[0]}</strong>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function HabitPagedGrid({
+  habits,
+  recordDate,
+  onRequestRecord,
+}: {
+  habits: Array<Habit & { recordCount: number }>
+  recordDate: string
+  onRequestRecord: (habitId: number, date: string) => void
 }) {
   const [pageIndex, setPageIndex] = useState(0)
   const [dragStartX, setDragStartX] = useState<number | null>(null)
   const didSwipeRef = useRef(false)
-  const pageSize = 3
+  const pageSize = 2
   const pages = Array.from({ length: Math.ceil(habits.length / pageSize) }, (_, index) =>
     habits.slice(index * pageSize, index * pageSize + pageSize),
   )
@@ -735,6 +999,15 @@ function HabitPagedGrid({
     setDragStartX(null)
   }
 
+  function ignoreSwipeClick() {
+    if (!didSwipeRef.current) {
+      return false
+    }
+
+    didSwipeRef.current = false
+    return true
+  }
+
   return (
     <div
       className="habit-paged-grid"
@@ -746,17 +1019,24 @@ function HabitPagedGrid({
         {currentPage.map((habit) => (
           <button
             type="button"
-            className={habit.completed ? 'habit-grid-card done' : 'habit-grid-card'}
+            className={[
+              'habit-grid-card',
+              habit.kind === 'negative' ? 'vice' : '',
+              habit.completed ? 'done' : '',
+            ].filter(Boolean).join(' ')}
             onClick={() => {
-              if (didSwipeRef.current) {
-                didSwipeRef.current = false
+              if (ignoreSwipeClick() || (habit.kind === 'positive' && habit.completed)) {
                 return
               }
-              onOpenHabitDetail(habit.id)
+
+              onRequestRecord(habit.id, recordDate)
             }}
+            disabled={habit.kind === 'positive' && habit.completed}
             key={habit.id}
           >
-            <span className="habit-status-badge">{habit.completed ? '완료' : '미완료'}</span>
+            <span className="habit-status-badge">
+              {habit.kind === 'negative' ? `${habit.recordCount}회` : habit.completed ? '완료' : '미완료'}
+            </span>
             <strong>{habit.title}</strong>
           </button>
         ))}
@@ -778,18 +1058,118 @@ function HabitPagedGrid({
   )
 }
 
+function HabitOverview({
+  habits,
+  records,
+  onBack,
+  onOpenHabitDetail,
+}: {
+  habits: Habit[]
+  records: RecordItem[]
+  onBack: () => void
+  onOpenHabitDetail: (habitId: number) => void
+}) {
+  const weekDays = getRecentDateRange(7)
+  const todayRecordHabitIds = new Set(records.filter((record) => record.date === todayIso).map((record) => record.habitId))
+  const completedTodayCount = habits.filter((habit) => todayRecordHabitIds.has(habit.id)).length
+  const recentRecordCount = habits.reduce((total, habit) => {
+    const recordDates = new Set(records.filter((record) => record.habitId === habit.id).map((record) => normalizeRecordDate(record.date)))
+    return total + weekDays.filter((day) => recordDates.has(day.iso)).length
+  }, 0)
+  const recentCapacity = Math.max(1, habits.length * weekDays.length)
+  const recentRatio = Math.round((recentRecordCount / recentCapacity) * 100)
+  const orderedHabits = habits
+    .map((habit) => {
+      const habitRecords = records.filter((record) => record.habitId === habit.id)
+      const recordDates = new Set(habitRecords.map((record) => normalizeRecordDate(record.date)))
+      const weekDoneCount = weekDays.filter((day) => recordDates.has(day.iso)).length
+      const lastRecord = [...habitRecords].sort((a, b) => b.date.localeCompare(a.date))[0]
+      return {
+        ...habit,
+        todayDone: todayRecordHabitIds.has(habit.id),
+        weekDoneCount,
+        recordCount: habitRecords.length,
+        lastRecordText: lastRecord == null ? '기록 없음' : formatISODateKorean(lastRecord.date),
+        recordDates,
+      }
+    })
+    .sort((a, b) => b.weekDoneCount - a.weekDoneCount || b.recordCount - a.recordCount || b.id - a.id)
+
+  return (
+    <main className="content detail-content">
+      <section className="habit-detail-hero compact">
+        <button type="button" className="back-button" onClick={onBack} aria-label="이전 화면">
+          <ArrowLeft className="ui-icon ui-icon--back" strokeWidth={2.1} aria-hidden="true" />
+        </button>
+        <div>
+          <h1>습관 현황</h1>
+        </div>
+      </section>
+
+      <section className="detail-summary-board overview-summary">
+        <span className="habit-status-badge done-inline">전체 흐름</span>
+        <h2>오늘 {completedTodayCount}개 완료</h2>
+        <p>최근 7일 기준 전체 기록률은 {recentRatio}%입니다.</p>
+      </section>
+
+      <section className="detail-stat-row">
+        <div>
+          <span>오늘 완료</span>
+          <strong>{completedTodayCount}/{habits.length}</strong>
+        </div>
+        <div>
+          <span>최근 7일</span>
+          <strong>{recentRecordCount}회</strong>
+        </div>
+        <div>
+          <span>전체 기록</span>
+          <strong>{records.length}회</strong>
+        </div>
+      </section>
+
+      <section className="habit-overview-list" aria-label="습관별 현황">
+        {orderedHabits.map((habit) => (
+          <button
+            type="button"
+            className="habit-overview-card"
+            onClick={() => onOpenHabitDetail(habit.id)}
+            key={habit.id}
+          >
+            <div className="habit-overview-card-head">
+              <span className={habit.todayDone ? 'habit-status-badge done-inline' : 'habit-status-badge'}>
+                {habit.todayDone ? '오늘 완료' : '오늘 대기'}
+              </span>
+              <strong>{habit.title}</strong>
+            </div>
+            <div className="week-strip-detail overview-week-strip">
+              {weekDays.map((day) => (
+                <div className={habit.recordDates.has(day.iso) ? 'done' : ''} key={`${habit.id}-${day.iso}`}>
+                  <span>{day.label}</span>
+                  <i />
+                </div>
+              ))}
+            </div>
+            <div className="habit-overview-meta">
+              <span>최근 {habit.weekDoneCount}/7</span>
+              <span>누적 {habit.recordCount}회</span>
+              <span>{habit.lastRecordText}</span>
+            </div>
+          </button>
+        ))}
+      </section>
+    </main>
+  )
+}
+
 function HabitDetail({
   habit,
   records,
   onBack,
-  onRecord,
 }: {
   habit: Habit
   records: RecordItem[]
   onBack: () => void
-  onRecord: () => void
 }) {
-  const [concept, setConcept] = useState<HabitDetailConcept>('status1')
   const recordCount = records.length
   const recordDates = new Set(records.map((record) => normalizeRecordDate(record.date)))
   const weekDays = getRecentDateRange(7)
@@ -798,15 +1178,9 @@ function HabitDetail({
   const todayDone = recordDates.has(todayIso)
   const completionText = todayDone ? '오늘 완료' : '오늘 미완료'
   const completionRatio = Math.round((weekDoneCount / weekDays.length) * 100)
-  const conceptTabs: { id: HabitDetailConcept; label: string }[] = [
-    { id: 'status1', label: '요약' },
-    { id: 'status2', label: '흐름' },
-    { id: 'status3', label: '주간' },
-    { id: 'status4', label: '기록' },
-    { id: 'status5', label: '다음' },
-  ]
   const paceLabel = completionRatio >= 70 ? '안정적' : completionRatio >= 40 ? '유지 중' : '시작 단계'
   const lastRecordText = lastRecord == null ? '아직 기록 없음' : formatISODateKorean(lastRecord.date)
+  const recentRecords = [...records].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
 
   return (
     <main className="content detail-content">
@@ -819,141 +1193,60 @@ function HabitDetail({
         </div>
       </section>
 
-      <section className="detail-concept-tabs varied" aria-label="상태 시안">
-        {conceptTabs.map((tab, index) => (
-          <button
-            type="button"
-            className={concept === tab.id ? `active tone-${index}` : `tone-${index}`}
-            onClick={() => setConcept(tab.id)}
-            key={tab.id}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </section>
-
-      <section className={`habit-concept-panel ${concept}`} aria-label="상태 내용">
-        {concept === 'status1' && (
-          <>
-            <div className="detail-summary-board">
-              <span className={todayDone ? 'habit-status-badge done-inline' : 'habit-status-badge'}>{completionText}</span>
-              <h2>{todayDone ? '오늘 흐름을 채웠어요' : '오늘 아직 비어 있어요'}</h2>
-              <p>{lastRecord == null ? '첫 기록을 남기면 이곳에 흐름이 쌓입니다.' : `최근 기록은 ${formatISODateKorean(lastRecord.date)}입니다.`}</p>
+      <section className="habit-concept-panel" aria-label="습관 상세 현황">
+        <div className="week-strip-detail status-week-strip">
+          {weekDays.map((day) => (
+            <div className={recordDates.has(day.iso) ? 'done' : ''} key={day.iso}>
+              <span>{day.label}</span>
+              <i />
             </div>
-            <div className="detail-stat-row">
-              <div>
-                <span>이번 주</span>
-                <strong>{weekDoneCount}/7</strong>
-              </div>
-              <div>
-                <span>전체 기록</span>
-                <strong>{recordCount}회</strong>
-              </div>
-              <div>
-                <span>페이스</span>
-                <strong>{completionRatio}%</strong>
-              </div>
-            </div>
-            <button type="button" className="primary-action detail-primary" onClick={onRecord} disabled={todayDone}>
-              {todayDone ? '기록 완료' : '오늘 기록하기'}
-            </button>
-          </>
-        )}
-
-        {concept === 'status2' && (
-          <>
-            <div className="detail-summary-board status-quiet-board">
-              <span className={todayDone ? 'habit-status-badge done-inline' : 'habit-status-badge'}>오늘 상태</span>
-              <h2>{todayDone ? '기록이 닫혔어요' : '아직 열려 있어요'}</h2>
-              <p>{formatISODateKorean(todayIso)} 기준으로 오늘 처리 상태만 먼저 보여줍니다.</p>
-            </div>
-            <div className="status-progress-card">
-              <div>
-                <span>최근 7일 완성도</span>
-                <strong>{completionRatio}%</strong>
-              </div>
-              <div className="status-progress-track" aria-hidden="true">
-                <i style={{ width: `${completionRatio}%` }} />
-              </div>
-              <em>{weekDoneCount}일 기록, {7 - weekDoneCount}일 비어 있음</em>
-            </div>
-            <div className="status-action-row">
-              <button type="button" className="primary-action detail-primary" onClick={onRecord} disabled={todayDone}>
-                {todayDone ? '기록 완료' : '오늘 기록하기'}
-              </button>
-            </div>
-          </>
-        )}
-
-        {concept === 'status3' && (
-          <>
-            <div className="week-strip-detail status-week-strip">
-              {weekDays.map((day) => (
-                <div className={recordDates.has(day.iso) ? 'done' : ''} key={day.iso}>
-                  <span>{day.label}</span>
-                  <i />
+          ))}
+        </div>
+        <div className="detail-summary-board status-week-board">
+          <span className={todayDone ? 'habit-status-badge done-inline' : 'habit-status-badge'}>{completionText}</span>
+          <h2>최근 7일 중 {weekDoneCount}일</h2>
+          <p>{lastRecord == null ? '첫 기록을 남기면 추이가 만들어집니다.' : `최근 기록은 ${lastRecordText}입니다.`}</p>
+        </div>
+        <div className="detail-stat-row">
+          <div>
+            <span>이번 주</span>
+            <strong>{weekDoneCount}/7</strong>
+          </div>
+          <div>
+            <span>전체 기록</span>
+            <strong>{recordCount}회</strong>
+          </div>
+          <div>
+            <span>페이스</span>
+            <strong>{paceLabel}</strong>
+          </div>
+        </div>
+        <div className="status-progress-card">
+          <div>
+            <span>최근 7일 완성도</span>
+            <strong>{completionRatio}%</strong>
+          </div>
+          <div className="status-progress-track" aria-hidden="true">
+            <i style={{ width: `${completionRatio}%` }} />
+          </div>
+          <em>{weekDoneCount}일 기록, {7 - weekDoneCount}일 비어 있음</em>
+        </div>
+        <section className="detail-history-list" aria-label="최근 기록">
+          {recentRecords.length === 0 ? (
+            <p className="quiet-empty">아직 기록이 없어요</p>
+          ) : (
+            recentRecords.map((record) => (
+              <article className="receipt-row" key={record.id}>
+                <span className="receipt-dot">{getRecordDay(record) ?? '-'}</span>
+                <div>
+                  <strong>{formatISODateKorean(record.date)}</strong>
+                  <span>{record.memo}</span>
                 </div>
-              ))}
-            </div>
-            <div className="detail-summary-board status-week-board">
-              <span className={todayDone ? 'habit-status-badge done-inline' : 'habit-status-badge'}>{paceLabel}</span>
-              <h2>최근 7일 중 {weekDoneCount}일</h2>
-              <p>주간 흐름을 먼저 보고 오늘 기록 여부를 바로 판단하는 형태입니다.</p>
-            </div>
-            <div className="status-focus-grid">
-              <div>
-                <span>오늘</span>
-                <strong>{todayDone ? '완료' : '대기'}</strong>
-              </div>
-              <div>
-                <span>최근 기록</span>
-                <strong>{lastRecordText}</strong>
-              </div>
-            </div>
-          </>
-        )}
-
-        {concept === 'status4' && (
-          <>
-            <div className="detail-summary-board status-line-board">
-              <span className={todayDone ? 'habit-status-badge done-inline' : 'habit-status-badge'}>기록 상태</span>
-              <h2>{recordCount}번 쌓였어요</h2>
-              <p>상세한 내역보다 현재 누적과 최신 상태를 압축해서 보여주는 시안입니다.</p>
-            </div>
-            <div className="status-check-list">
-              <article>
-                <span>최근 기록</span>
-                <strong>{lastRecordText}</strong>
+                <em>{record.habitTitle}</em>
               </article>
-              <article>
-                <span>오늘 처리</span>
-                <strong>{todayDone ? '완료' : '미완료'}</strong>
-              </article>
-              <article>
-                <span>주간 페이스</span>
-                <strong>{paceLabel}</strong>
-              </article>
-            </div>
-          </>
-        )}
-
-        {concept === 'status5' && (
-          <>
-            <div className="detail-summary-board status-soft-board">
-              <span className={todayDone ? 'habit-status-badge done-inline' : 'habit-status-badge'}>다음 상태</span>
-              <h2>{todayDone ? '내일 다시 이어가요' : '오늘 표시만 남겨요'}</h2>
-              <p>{todayDone ? '오늘 기록은 완료됐고 다음 체크만 남았습니다.' : '기록 버튼을 누르면 랭크와 달력에 바로 반영됩니다.'}</p>
-            </div>
-            <div className="detail-next-list status-next-list">
-              <span>오늘 상태: {todayDone ? '완료' : '대기'}</span>
-              <span>이번 주: {weekDoneCount}/7</span>
-              <span>전체 기록: {recordCount}회</span>
-            </div>
-            <button type="button" className="primary-action detail-primary" onClick={onRecord} disabled={todayDone}>
-              {todayDone ? '기록 완료' : '오늘 기록하기'}
-            </button>
-          </>
-        )}
+            ))
+          )}
+        </section>
       </section>
     </main>
   )
@@ -974,9 +1267,10 @@ function Groups({
   const joinedGroups = groups.filter((group) =>
     group.title.toLowerCase().includes(normalizedQuery),
   )
-  const filteredRecommendedGroups = getRecommendedGroups().filter((group) =>
-    group.title.toLowerCase().includes(normalizedQuery),
-  )
+  const joinedGroupTitles = new Set(groups.map((group) => group.title))
+  const filteredRecommendedGroups = getRecommendedGroups()
+    .filter((group) => !joinedGroupTitles.has(group.title))
+    .filter((group) => group.title.toLowerCase().includes(normalizedQuery))
 
   return (
     <main className="content group-content">
@@ -1097,12 +1391,9 @@ function getGroupMemberCount(_group: Group) {
 }
 
 function VisibilityIcon({ isPrivate }: { isPrivate: boolean }) {
-  const Icon = isPrivate ? Lock : LockOpen
-
   return (
-    <span className="visibility-icon-wrap">
-      <Icon className="ui-icon ui-icon--lock visibility-icon" strokeWidth={2.1} aria-hidden="true" />
-      <span className="sr-only">{isPrivate ? '비공개 모임' : '공개 모임'}</span>
+    <span className={isPrivate ? 'visibility-badge private' : 'visibility-badge public'}>
+      {isPrivate ? '비공개' : '공개'}
     </span>
   )
 }
@@ -1121,7 +1412,6 @@ function GroupDetail({
   challenges,
   members,
   onBack,
-  onOpenMembers,
   onCreateChallenge,
   onJoinChallenge,
   onRecordChallenge,
@@ -1130,7 +1420,6 @@ function GroupDetail({
   challenges: GroupChallenge[]
   members: GroupMember[]
   onBack: () => void
-  onOpenMembers: () => void
   onCreateChallenge: (challenge: GroupChallenge) => void
   onJoinChallenge: (challengeId: number) => void
   onRecordChallenge: (challengeId: number) => void
@@ -1139,25 +1428,26 @@ function GroupDetail({
   const [selectedChallengeId, setSelectedChallengeId] = useState(initialRankableChallenge?.id ?? 0)
   const [availableChallengePage, setAvailableChallengePage] = useState(0)
   const [joinedChallengePage, setJoinedChallengePage] = useState(0)
-  const [challengeSheetMode, setChallengeSheetMode] = useState<'menu' | 'create' | 'record' | null>(null)
+  const [challengeSheetMode, setChallengeSheetMode] = useState<'create' | 'record' | null>(null)
   const [pendingJoinChallenge, setPendingJoinChallenge] = useState<GroupChallenge | null>(null)
   const [newChallengeTitle, setNewChallengeTitle] = useState('')
   const [newChallengeSummary, setNewChallengeSummary] = useState('')
   const [recordChallengeId, setRecordChallengeId] = useState(initialRankableChallenge?.id ?? 0)
   const [isRecordChallengeMenuOpen, setIsRecordChallengeMenuOpen] = useState(false)
+  const [recordedChallengeIds, setRecordedChallengeIds] = useState<number[]>([])
   const allGroupChallenges = challenges
-  const availableChallenges = allGroupChallenges.filter((challenge) => !challenge.isParticipating)
+  const availableChallenges = allGroupChallenges
   const participatingChallenges = allGroupChallenges.filter((challenge) => challenge.isParticipating)
   const rankableChallenges = participatingChallenges.length > 0 ? participatingChallenges : allGroupChallenges
   const availableChallengePages = availableChallenges.reduce<GroupChallenge[][]>((pages, challenge, index) => {
-    if (index % 3 === 0) {
+    if (index % 2 === 0) {
       pages.push([])
     }
     pages[pages.length - 1].push(challenge)
     return pages
   }, [])
   const joinedChallengePages = participatingChallenges.reduce<GroupChallenge[][]>((pages, challenge, index) => {
-    if (index % 3 === 0) {
+    if (index % 2 === 0) {
       pages.push([])
     }
     pages[pages.length - 1].push(challenge)
@@ -1168,8 +1458,11 @@ function GroupDetail({
   const joinedPageCount = Math.max(1, joinedChallengePages.length)
   const activeJoinedPage = Math.min(joinedChallengePage, joinedPageCount - 1)
   const selectedChallenge = rankableChallenges.find((challenge) => challenge.id === selectedChallengeId) ?? rankableChallenges[0]
+  const recordableParticipatingChallenges = participatingChallenges.filter(
+    (challenge) => challenge.lastRecordedDate !== todayIso && !recordedChallengeIds.includes(challenge.id),
+  )
   const selectedRecordChallenge =
-    participatingChallenges.find((challenge) => challenge.id === recordChallengeId) ?? participatingChallenges[0]
+    recordableParticipatingChallenges.find((challenge) => challenge.id === recordChallengeId) ?? recordableParticipatingChallenges[0]
   const selectedChallengeProgress = selectedChallenge?.progress ?? []
   const progressByMember = new Map(selectedChallengeProgress.map((progress) => [progress.memberId, progress]))
   const membersWithProgress = members.map((member) => ({
@@ -1209,13 +1502,21 @@ function GroupDetail({
   }
 
   function openChallengeMenu() {
-    setChallengeSheetMode('menu')
+    openChallengeTab('record')
   }
 
-  function openRecordSheet() {
-    setRecordChallengeId(selectedChallenge?.id ?? participatingChallenges[0]?.id ?? 0)
-    setIsRecordChallengeMenuOpen(false)
-    setChallengeSheetMode('record')
+  function getChallengeStatus(challenge: GroupChallenge) {
+    const currentUserProgress = challenge.progress.find((progress) => progress.memberId === currentUserId)
+    return (currentUserProgress?.completedCount ?? 0) > 0 ? '완료' : '미완료'
+  }
+
+  function openChallengeTab(nextMode: 'create' | 'record') {
+    if (nextMode === 'record') {
+      setRecordChallengeId(selectedChallenge?.id ?? recordableParticipatingChallenges[0]?.id ?? 0)
+      setIsRecordChallengeMenuOpen(false)
+    }
+
+    setChallengeSheetMode(nextMode)
   }
 
   function closeChallengeSheet() {
@@ -1243,18 +1544,19 @@ function GroupDetail({
     }
 
     onCreateChallenge(nextChallenge)
-    setAvailableChallengePage(Math.floor(availableChallenges.length / 3))
+    setAvailableChallengePage(Math.floor(availableChallenges.length / 2))
     closeChallengeSheet()
   }
 
   function recordSelectedChallenge(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!participatingChallenges.some((challenge) => challenge.id === recordChallengeId)) {
+    if (!recordableParticipatingChallenges.some((challenge) => challenge.id === recordChallengeId)) {
       return
     }
 
     onRecordChallenge(recordChallengeId)
+    setRecordedChallengeIds((current) => current.includes(recordChallengeId) ? current : [...current, recordChallengeId])
     setSelectedChallengeId(recordChallengeId)
     closeChallengeSheet()
   }
@@ -1270,7 +1572,7 @@ function GroupDetail({
 
     onJoinChallenge(pendingJoinChallenge.id)
     setSelectedChallengeId(pendingJoinChallenge.id)
-    setJoinedChallengePage(Math.max(0, Math.floor(nextJoinedIndex / 3)))
+    setJoinedChallengePage(Math.max(0, Math.floor(nextJoinedIndex / 2)))
     setPendingJoinChallenge(null)
   }
 
@@ -1293,16 +1595,6 @@ function GroupDetail({
           <div className="group-detail-title">
             <div className="group-title-row">
               <h1>{group.title}</h1>
-            </div>
-            <div className="member-menu-wrap">
-              <button
-                type="button"
-                className="member-icon-button"
-                onClick={onOpenMembers}
-                aria-label={`멤버 ${members.length}명 보기`}
-              >
-                <UsersRound className="ui-icon ui-icon--member" strokeWidth={2} aria-hidden="true" />
-              </button>
             </div>
           </div>
         </div>
@@ -1334,11 +1626,21 @@ function GroupDetail({
                     <button
                       type="button"
                       className="available-challenge-card"
-                      onClick={() => setPendingJoinChallenge(challenge)}
+                      onClick={() => {
+                        if (challenge.isParticipating) {
+                          setSelectedChallengeId(challenge.id)
+                          return
+                        }
+
+                        setPendingJoinChallenge(challenge)
+                      }}
                       key={challenge.id}
                     >
-                      <strong>{challenge.title}</strong>
-                      <span>{challenge.summary}</span>
+                      <div className="challenge-card-copy">
+                        <strong>{challenge.title}</strong>
+                        <span>{challenge.summary}</span>
+                      </div>
+                      <span className="challenge-card-meta">{challenge.progress.length}명 참여</span>
                     </button>
                   ))}
                 </div>
@@ -1376,14 +1678,19 @@ function GroupDetail({
                         onClick={() => setSelectedChallengeId(challenge.id)}
                         key={challenge.id}
                       >
-                        <strong>{challenge.title}</strong>
+                        <div className="joined-challenge-card-head">
+                          <span className={getChallengeStatus(challenge) === '완료' ? 'challenge-status-badge done' : 'challenge-status-badge'}>
+                            {getChallengeStatus(challenge)}
+                          </span>
+                          <strong>{challenge.title}</strong>
+                        </div>
+                        <span className="joined-challenge-summary">{challenge.summary}</span>
                       </button>
                     ))}
                   </div>
                 ))}
               </div>
             </div>
-            <div className="joined-rank-divider" />
             <div className="panel-heading-row challenge-rank-head joined-rank-head">
               <div>
                 <h2>멤버 랭크</h2>
@@ -1416,46 +1723,41 @@ function GroupDetail({
             aria-label="챌린지 작업"
             onClick={(event) => event.stopPropagation()}
           >
-            {challengeSheetMode === 'menu' && (
-              <>
-                <div className="challenge-action-head">
-                  <h2>챌린지 작업</h2>
-                </div>
-                <div className="challenge-action-options">
-                  <button type="button" onClick={() => setChallengeSheetMode('create')}>
-                    <strong>챌린지 만들기</strong>
-                  </button>
-                  <button type="button" onClick={openRecordSheet}>
-                    <strong>기록 남기기</strong>
-                  </button>
-                </div>
-                <button type="button" className="cancel-button challenge-sheet-cancel" onClick={closeChallengeSheet}>
-                  취소
-                </button>
-              </>
-            )}
+            <div className="modal-tabs challenge-action-tabs">
+              <button
+                type="button"
+                className={challengeSheetMode === 'create' ? 'active' : ''}
+                onClick={() => openChallengeTab('create')}
+              >
+                챌린지 만들기
+              </button>
+              <button
+                type="button"
+                className={challengeSheetMode === 'record' ? 'active' : ''}
+                onClick={() => openChallengeTab('record')}
+              >
+                기록하기
+              </button>
+            </div>
 
             {challengeSheetMode === 'create' && (
               <form className="challenge-action-form" onSubmit={createGroupChallenge}>
-                <div className="challenge-action-head">
-                  <h2>챌린지 만들기</h2>
-                </div>
-                <label>
-                  <span>이름</span>
+                <label className="modal-field-plain">
+                  <span className="sr-only">챌린지 이름</span>
                   <input
                     value={newChallengeTitle}
                     onChange={(event) => setNewChallengeTitle(event.target.value)}
                     maxLength={16}
-                    placeholder="예: 저녁 산책"
+                    placeholder="챌린지 이름"
                   />
                 </label>
-                <label>
-                  <span>설명</span>
+                <label className="modal-field-plain">
+                  <span className="sr-only">챌린지 설명</span>
                   <input
                     value={newChallengeSummary}
                     onChange={(event) => setNewChallengeSummary(event.target.value)}
                     maxLength={24}
-                    placeholder="예: 20분 걷기 인증"
+                    placeholder="설명 예: 20분 걷기 인증"
                   />
                 </label>
                 <div className="modal-actions">
@@ -1471,23 +1773,20 @@ function GroupDetail({
 
             {challengeSheetMode === 'record' && (
               <form className="challenge-action-form" onSubmit={recordSelectedChallenge}>
-                <div className="challenge-action-head">
-                  <h2>기록 남기기</h2>
-                </div>
                 <div className="field-block">
-                  <span className="field-label">챌린지</span>
+                  <span className="sr-only">기록할 챌린지</span>
                   <button
                     type="button"
                     className="select-trigger"
                     onClick={() => setIsRecordChallengeMenuOpen((current) => !current)}
-                    disabled={participatingChallenges.length === 0}
+                    disabled={recordableParticipatingChallenges.length === 0}
                   >
                     <span>{selectedRecordChallenge?.title ?? '기록할 챌린지가 없어요'}</span>
                     <span className="select-caret" aria-hidden="true" />
                   </button>
                   {isRecordChallengeMenuOpen && (
                     <div className="select-menu">
-                      {participatingChallenges.map((challenge) => (
+                      {recordableParticipatingChallenges.map((challenge) => (
                         <button
                           type="button"
                           className={recordChallengeId === challenge.id ? 'selected' : ''}
@@ -1511,7 +1810,7 @@ function GroupDetail({
                   >
                     취소
                   </button>
-                  <button type="submit" className="submit-button" disabled={participatingChallenges.length === 0}>
+                  <button type="submit" className="submit-button" disabled={recordableParticipatingChallenges.length === 0}>
                     기록하기
                   </button>
                 </div>
@@ -1621,9 +1920,59 @@ function GroupMembersPage({
   )
 }
 
+function RecordConfirmModal({
+  habit,
+  recordDate,
+  onClose,
+  onConfirm,
+}: {
+  habit: Habit
+  recordDate: string
+  onClose: () => void
+  onConfirm: () => void
+}) {
+  useEscapeKey(onClose)
+  const isTodayRecord = normalizeRecordDate(recordDate) === todayIso
+  const isVice = habit.kind === 'negative'
+
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <section
+        className="modal-card record-confirm-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="record-confirm-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="record-confirm-head">
+          <h2 id="record-confirm-title">{habit.title}</h2>
+          <p>
+            {isVice
+              ? isTodayRecord
+                ? '오늘 한 번으로 기록할까요?'
+                : `${formatISODateKorean(recordDate)} 한 번으로 기록할까요?`
+              : isTodayRecord
+                ? '완료로 기록할까요?'
+                : `${formatISODateKorean(recordDate)} 완료로 기록할까요?`}
+          </p>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="cancel-button" onClick={onClose}>
+            취소
+          </button>
+          <button type="button" className={isVice ? 'submit-button vice-submit-button' : 'submit-button'} onClick={onConfirm}>
+            {isVice ? '추가하기' : '완료하기'}
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 function AppModal({
   mode,
   habits,
+  records,
   initialHabitId,
   onClose,
   onCreateHabit,
@@ -1632,6 +1981,7 @@ function AppModal({
 }: {
   mode: ModalMode
   habits: Habit[]
+  records: RecordItem[]
   initialHabitId?: number
   onClose: () => void
   onCreateHabit: (habit: Omit<Habit, 'id' | 'completed' | 'createdAt'>) => void
@@ -1639,26 +1989,99 @@ function AppModal({
   onCreateRecord: (payload: { habitId: number; date: string }) => void
 }) {
   const [tab, setTab] = useState<ModalMode>(mode === 'record' && habits.length === 0 ? 'habit' : mode)
-  const canShowRecordTab = mode !== 'group' && habits.length > 0
+  const canShowRecordTab = mode === 'record' && habits.length > 0
   const [habitId, setHabitId] = useState(initialHabitId?.toString() ?? habits[0]?.id.toString() ?? '')
   const [recordDate, setRecordDate] = useState(todayIso)
   const [datePickerMonth, setDatePickerMonth] = useState(currentCalendarMonth)
   const [isHabitMenuOpen, setIsHabitMenuOpen] = useState(false)
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
+  const [habitKind, setHabitKind] = useState<HabitKind>('positive')
   const [habitTitle, setHabitTitle] = useState('')
+  const [isWeekdayScheduleEnabled, setIsWeekdayScheduleEnabled] = useState(false)
+  const [selectedWeekdays, setSelectedWeekdays] = useState<Weekday[]>([])
+  const [isHabitTargetEnabled, setIsHabitTargetEnabled] = useState(false)
+  const [selectedHabitTargetUnits, setSelectedHabitTargetUnits] = useState<HabitTargetUnit[]>([])
+  const [habitTargetCounts, setHabitTargetCounts] = useState<Record<HabitTargetUnit, number>>({
+    day: 1,
+    week: 1,
+    month: 1,
+  })
+  const [habitDurationUnit, setHabitDurationUnit] = useState<HabitDurationUnit>('forever')
+  const [habitDurationCount, setHabitDurationCount] = useState(3)
+  const [habitEndDate] = useState(todayIso)
+  const [habitWeekInterval] = useState<HabitWeekInterval>(1)
+  const [isMonthWeekOrdinalEnabled] = useState(false)
+  const [selectedMonthWeekOrdinals] = useState<MonthWeekOrdinal[]>([])
   const [groupTitle, setGroupTitle] = useState('')
   const [isPrivate, setIsPrivate] = useState(false)
   const [privateKey, setPrivateKey] = useState('')
 
-  const canRecord = habitId !== ''
+  const recordedHabitIdsForDate = useMemo(
+    () => new Set(records.filter((record) => normalizeRecordDate(record.date) === recordDate).map((record) => record.habitId)),
+    [recordDate, records],
+  )
+  const availableRecordHabits = useMemo(
+    () => habits.filter((habit) => habit.kind === 'negative' || !recordedHabitIdsForDate.has(habit.id)),
+    [habits, recordedHabitIdsForDate],
+  )
+  const canRecord = habitId !== '' && availableRecordHabits.some((habit) => habit.id.toString() === habitId)
   const hasPrivateKey = !isPrivate || privateKey.trim().length > 0
-  const canCreateHabit = habitTitle.trim().length > 0
+  const canCreateHabit =
+    habitTitle.trim().length > 0 &&
+    (habitDurationUnit === 'forever' || habitDurationUnit === 'date' ? habitDurationUnit === 'forever' || habitEndDate !== '' : habitDurationCount > 0) &&
+    (!isHabitTargetEnabled || selectedHabitTargetUnits.length > 0) &&
+    (habitKind === 'negative' ||
+      ((!isWeekdayScheduleEnabled || selectedWeekdays.length > 0) &&
+        (!isMonthWeekOrdinalEnabled || selectedMonthWeekOrdinals.length > 0)))
   const canCreateGroup = groupTitle.trim().length > 0 && hasPrivateKey
-  const selectedHabit = habits.find((habit) => habit.id.toString() === habitId)
+  const selectedHabit = availableRecordHabits.find((habit) => habit.id.toString() === habitId)
   const dateDays = Array.from({ length: getDaysInMonth(calendarYear, datePickerMonth) }, (_, index) => index + 1)
+
+  useEffect(() => {
+    if (tab !== 'record') {
+      return
+    }
+
+    if (availableRecordHabits.some((habit) => habit.id.toString() === habitId)) {
+      return
+    }
+
+    setHabitId(availableRecordHabits[0]?.id.toString() ?? '')
+  }, [availableRecordHabits, habitId, tab])
 
   function moveDatePickerMonth(direction: -1 | 1) {
     setDatePickerMonth((month) => Math.min(12, Math.max(1, month + direction)))
+  }
+
+  function toggleWeekday(day: Weekday) {
+    setSelectedWeekdays((current) =>
+      current.includes(day)
+        ? current.filter((item) => item !== day)
+        : [...current, day].sort((a, b) => {
+            const aIndex = weekdayOptions.findIndex((option) => option.value === a)
+            const bIndex = weekdayOptions.findIndex((option) => option.value === b)
+            return aIndex - bIndex
+          }),
+    )
+  }
+
+  function toggleHabitTargetUnit(unit: HabitTargetUnit) {
+    setSelectedHabitTargetUnits((current) =>
+      current.includes(unit) ? current.filter((item) => item !== unit) : [...current, unit],
+    )
+  }
+
+  function updateHabitTargetCount(unit: HabitTargetUnit, value: string) {
+    const parsedValue = Number(value)
+    setHabitTargetCounts((current) => ({
+      ...current,
+      [unit]: Number.isFinite(parsedValue) ? Math.max(1, Math.min(99, Math.floor(parsedValue))) : 1,
+    }))
+  }
+
+  function adjustHabitTargetCount(unit: HabitTargetUnit, amount: number) {
+    const currentCount = habitTargetCounts[unit]
+    updateHabitTargetCount(unit, String(Math.max(1, Math.min(99, currentCount + amount))))
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -1673,6 +2096,30 @@ function AppModal({
     if (tab === 'habit' && canCreateHabit) {
       onCreateHabit({
         title: habitTitle.trim(),
+        kind: habitKind,
+        schedule: {
+          weekdaysEnabled: isWeekdayScheduleEnabled,
+          weekdays: habitKind === 'positive' && isWeekdayScheduleEnabled ? selectedWeekdays : [],
+          targetEnabled: habitKind === 'positive' && isHabitTargetEnabled,
+          targetUnit: selectedHabitTargetUnits[0] ?? 'day',
+          targetCount:
+            habitKind === 'positive' && isHabitTargetEnabled
+              ? habitTargetCounts[selectedHabitTargetUnits[0] ?? 'day']
+              : 1,
+          targetCounts:
+            habitKind === 'positive' && isHabitTargetEnabled
+              ? selectedHabitTargetUnits.reduce<HabitTargetCounts>((acc, unit) => {
+                  acc[unit] = habitTargetCounts[unit]
+                  return acc
+                }, {})
+              : {},
+          durationUnit: habitDurationUnit,
+          durationCount: habitDurationCount,
+          endDate: habitDurationUnit === 'date' ? habitEndDate : undefined,
+          weekInterval: habitKind === 'positive' ? habitWeekInterval : 1,
+          monthWeekOrdinalsEnabled: habitKind === 'positive' && isMonthWeekOrdinalEnabled,
+          monthWeekOrdinals: habitKind === 'positive' && isMonthWeekOrdinalEnabled ? selectedMonthWeekOrdinals : [],
+        },
       })
       onClose()
       return
@@ -1703,7 +2150,9 @@ function AppModal({
             </button>
           </div>
         ) : (
-          <h2 className="modal-title">{mode === 'group' ? '모임 만들기' : '습관 만들기'}</h2>
+          <h2 className="modal-title">
+            {mode === 'group' ? '모임 만들기' : habitKind === 'negative' ? '버릇 만들기' : '습관 만들기'}
+          </h2>
         )}
 
         <form className="modal-form" onSubmit={submit}>
@@ -1718,13 +2167,14 @@ function AppModal({
                     setIsHabitMenuOpen((current) => !current)
                     setIsDatePickerOpen(false)
                   }}
+                  disabled={availableRecordHabits.length === 0}
                 >
-                  <span>{selectedHabit?.title ?? '습관을 선택하세요'}</span>
+                  <span>{selectedHabit?.title ?? '기록할 습관이 없어요'}</span>
                   <span className="select-caret" aria-hidden="true" />
                 </button>
                 {isHabitMenuOpen && (
                   <div className="select-menu">
-                    {habits.map((habit) => (
+                    {availableRecordHabits.map((habit) => (
                       <button
                         type="button"
                         className={habit.id.toString() === habitId ? 'selected' : ''}
@@ -1806,14 +2256,131 @@ function AppModal({
 
           {tab === 'habit' && (
             <>
-              <label>
-                제목
+              <div className="habit-kind-tabs" aria-label="습관 종류">
+                <button
+                  type="button"
+                  className={habitKind === 'positive' ? 'active positive' : 'positive'}
+                  onClick={() => setHabitKind('positive')}
+                >
+                  <CirclePlus className="habit-kind-icon" strokeWidth={2.2} aria-hidden="true" />
+                  습관
+                </button>
+                <button
+                  type="button"
+                  className={habitKind === 'negative' ? 'active negative' : 'negative'}
+                  onClick={() => setHabitKind('negative')}
+                >
+                  <CircleMinus className="habit-kind-icon" strokeWidth={2.2} aria-hidden="true" />
+                  버릇
+                </button>
+              </div>
+              <label className="modal-field-plain">
+                <span className="sr-only">습관 제목</span>
                 <input
-                  placeholder="습관 제목을 입력하세요"
+                  placeholder={habitKind === 'negative' ? '줄이고 싶은 버릇을 입력하세요.' : '습관을 입력하세요.'}
                   value={habitTitle}
                   onChange={(event) => setHabitTitle(event.target.value)}
                 />
               </label>
+              <section className="habit-create-options" aria-label="습관 반복 설정">
+                {habitKind === 'positive' && (
+                  <>
+                    <label className="habit-toggle-row compact">
+                      <input
+                        type="checkbox"
+                        checked={isWeekdayScheduleEnabled}
+                        onChange={(event) => setIsWeekdayScheduleEnabled(event.target.checked)}
+                      />
+                      <span>특정 요일 지정</span>
+                    </label>
+                    {isWeekdayScheduleEnabled && (
+                      <div className="weekday-picker" aria-label="요일">
+                        {weekdayOptions.map((day) => (
+                          <button
+                            type="button"
+                            className={selectedWeekdays.includes(day.value) ? 'selected' : ''}
+                            onClick={() => toggleWeekday(day.value)}
+                            key={day.value}
+                          >
+                            {day.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <label className="habit-toggle-row compact">
+                      <input
+                        type="checkbox"
+                        checked={isHabitTargetEnabled}
+                        onChange={(event) => setIsHabitTargetEnabled(event.target.checked)}
+                      />
+                      <span>목표 설정</span>
+                    </label>
+                    {isHabitTargetEnabled && (
+                      <div className="habit-target-options target-unit-grid" aria-label="목표">
+                        {[
+                          { unit: 'day' as const, label: '하루' },
+                          { unit: 'week' as const, label: '주' },
+                          { unit: 'month' as const, label: '월' },
+                        ].map((target) => (
+                          <div
+                            className={selectedHabitTargetUnits.includes(target.unit) ? 'target-unit-card selected' : 'target-unit-card'}
+                            key={target.unit}
+                          >
+                            <button type="button" className="target-unit-select" onClick={() => toggleHabitTargetUnit(target.unit)}>
+                              {target.label}
+                            </button>
+                            {selectedHabitTargetUnits.includes(target.unit) && (
+                              <div className="target-count-picker" aria-label={`${target.label} 목표 횟수`}>
+                                <button
+                                  type="button"
+                                  className="target-count-step"
+                                  onClick={() => adjustHabitTargetCount(target.unit, -1)}
+                                  disabled={habitTargetCounts[target.unit] <= 1}
+                                  aria-label={`${target.label} 횟수 줄이기`}
+                                >
+                                  <Minus size={15} strokeWidth={2.4} aria-hidden="true" />
+                                </button>
+                                <strong>{habitTargetCounts[target.unit]}회</strong>
+                                <button
+                                  type="button"
+                                  className="target-count-step"
+                                  onClick={() => adjustHabitTargetCount(target.unit, 1)}
+                                  disabled={habitTargetCounts[target.unit] >= 99}
+                                  aria-label={`${target.label} 횟수 늘리기`}
+                                >
+                                  <Plus size={15} strokeWidth={2.4} aria-hidden="true" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+                <div className={habitKind === 'negative' ? 'habit-period-block vice' : 'habit-period-block'}>
+                  <div className="habit-period-label">
+                    <strong>기간</strong>
+                  </div>
+                  <div className="habit-period-options" aria-label="진행 기간">
+                    {durationPresets.map((duration) => (
+                      <button
+                        type="button"
+                        className={habitDurationUnit === duration.unit && (duration.unit === 'forever' || habitDurationCount === duration.value) ? 'active' : ''}
+                        onClick={() => {
+                          setHabitDurationUnit(duration.unit)
+                          if (duration.unit !== 'forever') {
+                            setHabitDurationCount(duration.value)
+                          }
+                        }}
+                        key={duration.label}
+                      >
+                        {duration.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </section>
               <div className="modal-actions">
                 <button type="button" className="cancel-button" onClick={onClose}>
                   취소
@@ -1877,43 +2444,35 @@ function AppModal({
 function GroupJoinGate({
   group,
   initialNickname,
-  initialAvatarDataUrl,
+  existingNicknames,
   onClose,
   onSubmit,
 }: {
   group: Group
   initialNickname: string
-  initialAvatarDataUrl?: string
+  existingNicknames: string[]
   onClose: () => void
-  onSubmit: (nickname: string, avatarDataUrl?: string) => void
+  onSubmit: (nickname: string) => void
 }) {
   const [nickname, setNickname] = useState(initialNickname)
-  const [avatarDataUrl, setAvatarDataUrl] = useState(initialAvatarDataUrl)
   const [privateKey, setPrivateKey] = useState('')
   const [privateKeyError, setPrivateKeyError] = useState('')
+  const [nicknameError, setNicknameError] = useState('')
   const trimmedNickname = nickname.trim()
   const trimmedPrivateKey = privateKey.trim()
-  const canSubmit = trimmedNickname.length >= 2 && (!group.isPrivate || trimmedPrivateKey.length > 0)
+  const isDuplicateNickname = existingNicknames.some((name) => name.trim() === trimmedNickname)
+  const canSubmit = trimmedNickname.length >= 2 && !isDuplicateNickname && (!group.isPrivate || trimmedPrivateKey.length > 0)
 
   useEscapeKey(onClose)
 
-  function handleAvatarChange(file: File | undefined) {
-    if (file == null || !file.type.startsWith('image/')) {
+  function submitJoin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (trimmedNickname.length < 2) {
       return
     }
 
-    const reader = new FileReader()
-    reader.addEventListener('load', () => {
-      if (typeof reader.result === 'string') {
-        setAvatarDataUrl(reader.result)
-      }
-    })
-    reader.readAsDataURL(file)
-  }
-
-  function submitJoin(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!canSubmit) {
+    if (isDuplicateNickname) {
+      setNicknameError('이미 사용 중인 닉네임이에요.')
       return
     }
 
@@ -1922,7 +2481,7 @@ function GroupJoinGate({
       return
     }
 
-    onSubmit(trimmedNickname, avatarDataUrl)
+    onSubmit(trimmedNickname)
   }
 
   return (
@@ -1936,40 +2495,29 @@ function GroupJoinGate({
       >
         <form className="join-gate-form" onSubmit={submitJoin}>
           <div className="join-gate-head">
+            <VisibilityIcon isPrivate={group.isPrivate} />
             <h2 id="group-join-title">{group.title}</h2>
           </div>
-          <label className="join-profile-picker">
-            <input
-              type="file"
-              accept="image/*"
-              aria-label="프로필 사진 변경"
-              onChange={(event) => handleAvatarChange(event.target.files?.[0])}
-            />
-            <span className="join-avatar-button">
-              {avatarDataUrl != null ? (
-                <img src={avatarDataUrl} alt="" />
-              ) : (
-                <DefaultAvatar />
-              )}
-              <span className="join-camera-badge" aria-hidden="true">
-                <Camera className="ui-icon" strokeWidth={2.2} />
-              </span>
-            </span>
-          </label>
           <div className="join-field-stack">
-            <label className="join-nickname-field">
+            <label className="join-nickname-field modal-field-plain">
               <span className="sr-only">닉네임</span>
               <input
                 value={nickname}
-                onChange={(event) => setNickname(event.target.value)}
+                onChange={(event) => {
+                  setNickname(event.target.value)
+                  setNicknameError('')
+                }}
                 maxLength={12}
                 placeholder="모임에서 사용할 닉네임"
                 autoFocus
               />
             </label>
+            {(nicknameError !== '' || (trimmedNickname.length >= 2 && isDuplicateNickname)) && (
+              <p className="private-gate-error">{nicknameError || '이미 사용 중인 닉네임이에요.'}</p>
+            )}
             {group.isPrivate && (
               <>
-                <label className="join-private-key-field">
+                <label className="join-private-key-field modal-field-plain">
                   <span className="sr-only">참여 비밀번호</span>
                   <input
                     value={privateKey}
@@ -2000,11 +2548,10 @@ function GroupJoinGate({
 
 function App() {
   const storedState = useMemo(readStoredAppState, [])
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(() =>
-    normalizeStoredUserProfile(storedState.userProfile),
-  )
+  const storedUserProfile = useMemo(() => normalizeStoredUserProfile(storedState.userProfile), [storedState.userProfile])
   const [screen, setScreen] = useState<Screen>('home')
   const [modalMode, setModalMode] = useState<ModalMode | null>(null)
+  const [pendingRecord, setPendingRecord] = useState<{ habitId: number; date: string } | null>(null)
   const [selectedHabitId, setSelectedHabitId] = useState<number | undefined>()
   const [detailHabitId, setDetailHabitId] = useState<number | null>(null)
   const [detailGroup, setDetailGroup] = useState<Group | null>(null)
@@ -2016,12 +2563,14 @@ function App() {
     normalizeStoredHabits(storedState.habits, normalizeStoredRecords(storedState.records)),
   )
   const [groups, setGroups] = useState<Group[]>(() => normalizeStoredGroups(storedState.groups))
+  const [groupProfiles, setGroupProfiles] = useState<Record<string, GroupProfile>>(() =>
+    normalizeStoredGroupProfiles(storedState.groupProfiles),
+  )
   const [groupChallengeStore, setGroupChallengeStore] = useState<GroupChallengeStore>(() =>
     normalizeStoredGroupChallengesByGroup(storedState.groupChallengesByGroup),
   )
 
   const nextHabitId = useMemo(() => Math.max(0, ...habits.map((habit) => habit.id)) + 1, [habits])
-  const nextRecordId = useMemo(() => Math.max(0, ...records.map((record) => record.id)) + 1, [records])
   const nextGroupId = useMemo(() => Math.max(0, ...groups.map((group) => group.id)) + 1, [groups])
   const todayRecordHabitIds = useMemo(
     () => new Set(records.filter((record) => record.date === todayIso).map((record) => record.habitId)),
@@ -2033,11 +2582,15 @@ function App() {
   const activeGroup =
     detailGroup == null ? null : groups.find((group) => group.title === detailGroup.title) ?? detailGroup
   const activeGroupChallenges = activeGroup == null ? [] : getChallengesForGroup(groupChallengeStore, activeGroup)
-  const activeGroupMembers = useMemo(() => getGroupMembers(userProfile), [userProfile])
+  const activeGroupProfile = activeGroup == null ? null : groupProfiles[getGroupKey(activeGroup)] ?? null
+  const pendingJoinGroupProfile = pendingJoinGroup == null ? undefined : groupProfiles[getGroupKey(pendingJoinGroup)]
+  const activeGroupMembers = useMemo(() => getGroupMembers(activeGroupProfile), [activeGroupProfile])
+  const pendingRecordHabit = pendingRecord == null ? undefined : habits.find((habit) => habit.id === pendingRecord.habitId)
 
   useEffect(() => {
     const payload: StoredAppState = {
-      userProfile: userProfile ?? undefined,
+      userProfile: storedUserProfile ?? undefined,
+      groupProfiles,
       habits,
       records,
       groups: groups.map((group) => ({
@@ -2048,15 +2601,15 @@ function App() {
     }
 
     window.localStorage.setItem(appStorageKey, JSON.stringify(payload))
-  }, [groupChallengeStore, groups, habits, records, userProfile])
+  }, [groupChallengeStore, groupProfiles, groups, habits, records, storedUserProfile])
 
-  function saveUserProfile(nickname: string, avatarDataUrl?: string) {
-    setUserProfile({
-      id: currentUserId,
-      nickname,
-      createdAt: userProfile?.createdAt ?? todayIso,
-      avatarDataUrl,
-    })
+  function saveGroupProfile(group: Group, nickname: string) {
+    setGroupProfiles((current) => ({
+      ...current,
+      [getGroupKey(group)]: {
+        nickname,
+      },
+    }))
   }
 
   function moveScreen(nextScreen: Screen) {
@@ -2085,34 +2638,38 @@ function App() {
     setScreen('groupDetail')
   }
 
-  function openGroupMembers() {
-    setScreen('groupMembers')
-  }
-
   function closeGroupJoinGate() {
     setPendingJoinGroup(null)
   }
 
-  function confirmGroupJoin(nickname: string, avatarDataUrl?: string) {
+  function confirmGroupJoin(nickname: string) {
     if (pendingJoinGroup == null) {
       return
     }
 
-    saveUserProfile(nickname, avatarDataUrl)
+    saveGroupProfile(pendingJoinGroup, nickname)
     joinGroup(pendingJoinGroup)
     setDetailGroup(pendingJoinGroup)
     setScreen('groupDetail')
     closeGroupJoinGate()
   }
 
-  function openRecord(habitId?: number) {
-    setSelectedHabitId(habitId)
-    setModalMode(habits.length === 0 ? 'habit' : 'record')
-  }
-
   function closeModal() {
     setModalMode(null)
     setSelectedHabitId(undefined)
+  }
+
+  function closeRecordConfirm() {
+    setPendingRecord(null)
+  }
+
+  function confirmPendingRecord() {
+    if (pendingRecord == null) {
+      return
+    }
+
+    createRecord(pendingRecord)
+    closeRecordConfirm()
   }
 
   function createHabit(habit: Omit<Habit, 'id' | 'completed' | 'createdAt'>) {
@@ -2205,6 +2762,7 @@ function App() {
         return {
           ...challenge,
           isParticipating: true,
+          lastRecordedDate: todayIso,
           progress: [
             nextProgress,
             ...challenge.progress.filter((progress) => progress.memberId !== currentUserId),
@@ -2222,17 +2780,17 @@ function App() {
 
     const normalizedDate = normalizeRecordDate(payload.date)
     setRecords((current) => {
-      if (current.some((record) => record.habitId === payload.habitId && record.date === normalizedDate)) {
+      if (habit.kind === 'positive' && current.some((record) => record.habitId === payload.habitId && record.date === normalizedDate)) {
         return current
       }
 
       return [
         ...current,
         {
-          id: nextRecordId,
+          id: Math.max(0, ...current.map((record) => record.id)) + 1,
           habitId: payload.habitId,
           habitTitle: habit.title,
-          memo: '완료',
+          memo: habit.kind === 'negative' ? '버릇' : '완료',
           date: normalizedDate,
         },
       ]
@@ -2263,7 +2821,6 @@ function App() {
           challenges={activeGroupChallenges}
           members={activeGroupMembers}
           onBack={() => moveScreen('groups')}
-          onOpenMembers={openGroupMembers}
           onCreateChallenge={(challenge) => createGroupChallenge(activeGroup, challenge)}
           onJoinChallenge={(challengeId) => joinGroupChallenge(activeGroup, challengeId)}
           onRecordChallenge={(challengeId) => recordGroupChallenge(activeGroup, challengeId)}
@@ -2273,14 +2830,20 @@ function App() {
           habit={detailHabit}
           records={records.filter((record) => record.habitId === detailHabit.id)}
           onBack={() => moveScreen('home')}
-          onRecord={() => openRecord(detailHabit.id)}
+        />
+      ) : screen === 'habitOverview' ? (
+        <HabitOverview
+          habits={habits}
+          records={records}
+          onBack={() => moveScreen('home')}
+          onOpenHabitDetail={openHabitDetail}
         />
       ) : (
         <Home
           habits={habits}
           records={records}
           onOpenHabit={() => setModalMode('habit')}
-          onOpenHabitDetail={openHabitDetail}
+          onRequestRecord={(habitId, date) => setPendingRecord({ habitId, date })}
         />
       )}
 
@@ -2288,6 +2851,7 @@ function App() {
         <AppModal
           mode={modalMode}
           habits={habits}
+          records={records}
           initialHabitId={selectedHabitId}
           onClose={closeModal}
           onCreateHabit={createHabit}
@@ -2299,10 +2863,19 @@ function App() {
       {pendingJoinGroup != null && (
         <GroupJoinGate
           group={pendingJoinGroup}
-          initialNickname={userProfile?.nickname ?? ''}
-          initialAvatarDataUrl={userProfile?.avatarDataUrl}
+          initialNickname={pendingJoinGroupProfile?.nickname ?? ''}
+          existingNicknames={getGroupMembers(null).map((member) => member.name)}
           onClose={closeGroupJoinGate}
           onSubmit={confirmGroupJoin}
+        />
+      )}
+
+      {pendingRecord != null && pendingRecordHabit != null && (
+        <RecordConfirmModal
+          habit={pendingRecordHabit}
+          recordDate={pendingRecord.date}
+          onClose={closeRecordConfirm}
+          onConfirm={confirmPendingRecord}
         />
       )}
     </div>
